@@ -41,6 +41,12 @@ def label_emoji(label: str) -> str:
     return LABEL_EMOJI.get(label.lower(), DEFAULT_EMOJI)
 
 
+def score_bar(score: float, blocks: int = 5) -> str:
+    """Визуальная шкала уверенности: 🟩🟩🟩⬜⬜."""
+    filled = round(max(0.0, min(1.0, score)) * blocks)
+    return "🟩" * filled + "⬜" * (blocks - filled)
+
+
 
 
 @dataclass(frozen=True)
@@ -78,7 +84,7 @@ class EventInfo:
         if self.sub_label:
             title += f" · {html.escape(self.sub_label)}"
         title += f" — <b>{html.escape(where)}</b>"
-        line2 = f"<code>{pct}%</code>"
+        line2 = f"<code>{pct}%</code> {score_bar(self.score)}"
         ts = self._time_str(tz_name)
         if ts:
             line2 += f" · 🕒 {ts}"

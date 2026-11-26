@@ -95,6 +95,7 @@ def test_card_html():
     assert card.startswith("👤 <b>Person</b>")
     assert "front_door · driveway" in card
     assert "<code>90%</code>" in card
+    assert "<code>90%</code> 🟩🟩🟩🟩⬜" in card
     assert len(card.splitlines()) == 2
 
 
