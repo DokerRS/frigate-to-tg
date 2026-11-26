@@ -5,24 +5,26 @@ frigate:
   url: http://frigate:5000
   # авторизация (если Frigate закрыт логином): basic auth или токен
   # auth:
-  #   user: ${FRIGATE_USER}
-  #   password: ${FRIGATE_PASSWORD}
-  #   token: ${FRIGATE_TOKEN}
+  #   user: admin
+  #   password: secret
+  # auth:
+  #   token: <frigate api token>
   snapshot_quality: 80
 
 mqtt:
   host: mqtt
   port: 1883
-  # username: ${MQTT_USER}
-  # password: ${MQTT_PASSWORD}
+  # username: admin
+  # password: secret
   prefix: frigate             # MQTT-префикс Frigate; события приходят в <prefix>/events
   tls: false
 
 telegram:
+  # токен берётся из .env (он не должен попадать в git)
   bot_token: ${TELEGRAM_BOT_TOKEN}
   # HTTP/SOCKS прокси для доступа к api.telegram.org, например:
   #   http://user:pass@proxy.local:3128  или  socks5://proxy.local:1080
-  proxy_url: ${TELEGRAM_PROXY_URL:-}
+  proxy_url: ""
 
 alerts:
   # какие MQTT-действия отправлять: new, update, end

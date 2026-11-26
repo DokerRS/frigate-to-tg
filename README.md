@@ -25,10 +25,8 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    cp .env.example .env
    cp config/config.example.yaml config/config.yaml
    ```
-3. Заполните `.env` (в нём только секреты, остальное — в `config/config.yaml`):
-   - `TELEGRAM_BOT_TOKEN` — токен бота;
-   - `TELEGRAM_PROXY_URL` — например `http://user:pass@192.168.1.5:3128` (пусто = без прокси).
-4. Настройте `config/config.yaml`: адреса Frigate/MQTT и маршруты (см. ниже).
+3. Заполните `.env` — в нём только `TELEGRAM_BOT_TOKEN` (чтобы токен не попал в git).
+4. Настройте `config/config.yaml`: адреса Frigate/MQTT, прокси Telegram, маршруты (см. ниже).
    `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
 5. Запуск:
    ```bash
@@ -56,7 +54,7 @@ mqtt:
 
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}
-  proxy_url: ${TELEGRAM_PROXY_URL:-}   # http://... или socks5://...
+  proxy_url: ""               # http://... или socks5://... (пусто = без прокси)
 
 groups:
   from_frigate: true          # использовать camera_groups из Frigate
