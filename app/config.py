@@ -52,6 +52,7 @@ class LoggingConfig:
 @dataclass
 class FrigateConfig:
     url: str = "http://frigate:5000"
+    public_url: str | None = None  # внешний адрес для ссылок в Telegram (по умолчанию = url)
     username: str | None = None
     password: str | None = None
     token: str | None = None
@@ -160,6 +161,7 @@ def _parse_frigate(raw: dict) -> FrigateConfig:
     auth = raw.get("auth") or {}
     return FrigateConfig(
         url=str(raw.get("url", "http://frigate:5000")).rstrip("/"),
+        public_url=(str(raw["public_url"]).strip().rstrip("/") or None) if raw.get("public_url") else None,
         username=auth.get("user") or raw.get("username") or None,
         password=auth.get("password") or raw.get("password") or None,
         token=auth.get("token") or raw.get("token") or None,

@@ -9,6 +9,9 @@ logging:
 
 frigate:
   url: http://frigate:5000
+  # внешний адрес Frigate (тот, что открывается в браузере с телефона).
+  # Используется для кнопки «🔗 Открыть в Frigate». По умолчанию = url.
+  # public_url: http://192.168.1.10:5000
   # авторизация (если Frigate закрыт логином): basic auth или токен
   # auth:
   #   user: admin

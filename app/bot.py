@@ -107,7 +107,7 @@ class AlertBot:
                 enabled = self.cfg.alerts.send_video_button
             else:
                 enabled = route.send_video
-            markup = self._video_markup(event) if enabled else None
+            markup = self._markup(event, show_video=enabled)
             await self._send_photo(route, event, image, caption, markup)
 
     async def _send_photo(
@@ -124,13 +124,15 @@ class AlertBot:
         except TelegramError as exc:
             log.error("Не удалось отправить фото в %s: %s", route.describe(), exc)
 
-    def _video_markup(self, event: EventInfo) -> dict | None:
-        if not self.cfg.alerts.send_video_button or not event.has_clip:
-            return None
-        data = f"{VIDEO_CB_PREFIX}{event.event_id}"
-        if len(data.encode()) > MAX_CALLBACK_LEN:
-            return None
-        return {"inline_keyboard": [[{"text": "🎬 Видео", "callback_data": data}]]}
+    def _markup(self, event: EventInfo, show_video: bool) -> dict | None:
+        rows: list[list[dict]] = []
+        if show_video and event.has_clip:
+            data = f"{VIDEO_CB_PREFIX}{event.event_id}"
+            if len(data.encode()) <= MAX_CALLBACK_LEN:
+                rows.append([{"text": "🎬 Видео", "callback_data": data}])
+        base = (self.cfg.frigate.public_url or self.cfg.frigate.url).rstrip("/")
+        rows.append([{"text": "🔗 Открыть в Frigate", "url": f"{base}/review?id={event.event_id}"}])
+        return {"inline_keyboard": rows}
 
     def _mark_sent(self, event_id: str) -> None:
         now = time.time()
