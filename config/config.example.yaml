@@ -38,7 +38,7 @@ alerts:
   require_snapshot: true
   min_score: 0.7
   caption_format: "{camera}: {label} — {score}%"   # используется при caption_card: false
-  caption_card: true        # красивая карточка: эмодзи объекта, % + шкала, камера, зоны, время
+  caption_card: true        # компактная подпись в две строки: "🚗 Car — камера · зоны" / "80% · 🕒 время"
   timezone: Asia/Almaty     # таймзона для времени в карточке (пусто = время сервера)
   send_video_button: true     # кнопка "Видео" под фото (по запросу)
   video_max_mb: 45            # лимит для Telegram (боты могут до ~50 МБ)

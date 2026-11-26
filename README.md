@@ -7,8 +7,8 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
 ## Возможности
 
 - Подписка на MQTT-топик `frigate/events` (Frigate 0.14+).
-- Фото события (snapshot, при отсутствии — thumbnail) с красивой карточкой: эмодзи объекта,
-  % уверенности со шкалой, камера, зоны, время. Отключается `alerts.caption_card: false`
+- Фото события (snapshot, при отсутствии — thumbnail) с компактной подписью в две строки:
+  `🚗 Car — balkon · zone` и `80% · 🕒 26.11.2025 20:13`. Отключается `alerts.caption_card: false`
   (тогда используется простой `caption_format`).
 - Кнопка «🎬 Видео» → бот скачивает `clip.mp4` из Frigate и отправляет в чат
   (если больше `video_max_mb` — отправляется как документ).
@@ -67,7 +67,7 @@ telegram:
   proxy_url: ""               # http://... или socks5://... (пусто = без прокси)
 
 alerts:
-  caption_card: true          # красивая карточка под фото (эмодзи, шкала %, зоны, время)
+  caption_card: true          # компактная подпись под фото в две строки (по умолчанию true)
   timezone: Asia/Almaty       # таймзона времени в карточке
   # caption_format: "{camera}: {label} — {score}%"  # простая подпись (caption_card: false)
 

@@ -41,10 +41,6 @@ def label_emoji(label: str) -> str:
     return LABEL_EMOJI.get(label.lower(), DEFAULT_EMOJI)
 
 
-def score_bar(score: float, blocks: int = 5) -> str:
-    """Визуальная шкала уверенности: ▰▰▰▱▱."""
-    filled = round(max(0.0, min(1.0, score)) * blocks)
-    return "▰" * filled + "▱" * (blocks - filled)
 
 
 @dataclass(frozen=True)
@@ -73,21 +69,20 @@ class EventInfo:
         )
 
     def card_html(self, tz_name: str | None = None) -> str:
-        """Красивая HTML-подпись к фото (parse_mode=HTML, значения экранированы)."""
+        """Компактная HTML-подпись к фото в две строки (parse_mode=HTML)."""
         pct = int(round(self.score * 100))
-        lines = [
-            f"{label_emoji(self.label)} <b>{html.escape(self.label.capitalize())}</b>"
-            f" <code>{pct}%</code> {score_bar(self.score)}",
-            f"📷 <b>{html.escape(self.camera)}</b>",
-        ]
-        if self.sub_label:
-            lines.append(f"🏷 {html.escape(self.sub_label)}")
+        where = html.escape(self.camera)
         if self.zones:
-            lines.append("📍 " + html.escape(", ".join(self.zones)))
+            where += " · " + html.escape(", ".join(self.zones))
+        title = f"{label_emoji(self.label)} <b>{html.escape(self.label.capitalize())}</b>"
+        if self.sub_label:
+            title += f" · {html.escape(self.sub_label)}"
+        title += f" — <b>{html.escape(where)}</b>"
+        line2 = f"<code>{pct}%</code>"
         ts = self._time_str(tz_name)
         if ts:
-            lines.append(f"🕒 {ts}")
-        return "\n".join(lines)
+            line2 += f" · 🕒 {ts}"
+        return f"{title}\n{line2}"
 
     def _time_str(self, tz_name: str | None) -> str:
         if not self.start_time:
