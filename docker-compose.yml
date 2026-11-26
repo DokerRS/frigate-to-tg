@@ -4,7 +4,6 @@ services:
     image: frigate-to-tg:latest
     container_name: frigate-to-tg
     restart: unless-stopped
-    env_file: .env
     volumes:
       - ./config/config.yaml:/app/config/config.yaml:ro
     networks:

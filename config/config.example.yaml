@@ -1,5 +1,6 @@
 # Пример конфигурации frigate-to-tg.
-# Единственная переменная окружения — TELEGRAM_BOT_TOKEN (из .env).
+# Скопируйте в config/config.yaml — этот файл не попадает в git (см. .gitignore),
+# поэтому секреты можно писать прямо сюда.
 
 log_level: INFO               # DEBUG | INFO | WARNING | ERROR
 
@@ -22,8 +23,7 @@ mqtt:
   tls: false
 
 telegram:
-  # токен берётся из .env (он не должен попадать в git)
-  bot_token: ${TELEGRAM_BOT_TOKEN}
+  bot_token: "123456:ABC-DEF..."
   # HTTP/SOCKS прокси для доступа к api.telegram.org, например:
   #   http://user:pass@proxy.local:3128  или  socks5://proxy.local:1080
   proxy_url: ""

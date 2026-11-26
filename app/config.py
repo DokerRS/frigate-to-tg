@@ -165,7 +165,7 @@ def _parse_mqtt(raw: dict) -> MqttConfig:
 def _parse_telegram(raw: dict) -> TelegramConfig:
     token = str(raw.get("bot_token", "")).strip()
     if not token:
-        raise ConfigError("Не задан telegram.bot_token (передайте TELEGRAM_BOT_TOKEN)")
+        raise ConfigError("Не задан telegram.bot_token в config.yaml")
     return TelegramConfig(
         bot_token=token,
         proxy_url=(str(raw.get("proxy_url")).strip() or None) if raw.get("proxy_url") else None,

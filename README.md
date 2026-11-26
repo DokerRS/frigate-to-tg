@@ -20,15 +20,14 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
 
 1. Создайте бота у [@BotFather](https://t.me/BotFather), получите токен.
    Для отправки в топики бот должен быть добавлен в группу-форум и иметь право писать сообщения.
-2. Скопируйте файлы:
+2. Скопируйте конфиг:
    ```bash
-   cp .env.example .env
    cp config/config.example.yaml config/config.yaml
    ```
-3. Заполните `.env` — в нём только `TELEGRAM_BOT_TOKEN` (чтобы токен не попал в git).
-4. Настройте `config/config.yaml`: адреса Frigate/MQTT, прокси Telegram, маршруты (см. ниже).
-   `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
-5. Запуск:
+   `config/config.yaml` не попадает в git (`.gitignore`), поэтому токен и пароли пишете прямо в него.
+3. Заполните `config/config.yaml`: токен бота, адреса Frigate/MQTT, прокси Telegram, маршруты
+   (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
+4. Запуск:
    ```bash
    docker compose up -d
    docker compose logs -f
@@ -39,7 +38,8 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
 
 ## Конфигурация
 
-Значения `${VAR}` и `${VAR:-default}` в YAML подставляются из переменных окружения.
+Единственный файл — `config/config.yaml`. Значения `${VAR}` и `${VAR:-default}`
+при желании можно подставлять из переменных окружения.
 
 ```yaml
 frigate:
@@ -53,7 +53,7 @@ mqtt:
   prefix: frigate           # события приходят в <prefix>/events
 
 telegram:
-  bot_token: ${TELEGRAM_BOT_TOKEN}
+  bot_token: "123456:ABC-DEF..."
   proxy_url: ""               # http://... или socks5://... (пусто = без прокси)
 
 groups:
