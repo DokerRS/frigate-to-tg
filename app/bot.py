@@ -10,6 +10,7 @@ from collections import OrderedDict
 
 from .config import AppConfig, Route
 from .frigate_client import FrigateClient, FrigateError
+from .logging_setup import set_log_level
 from .router import EventInfo, Router, parse_event
 from .telegram import TelegramBot, TelegramError
 
@@ -64,7 +65,13 @@ class AlertBot:
     async def handle_mqtt_event(self, payload: dict) -> None:
         event = parse_event(payload)
         if event is None:
+            log.debug("MQTT: сообщение не распознано как событие Frigate")
             return
+        log.debug(
+            "MQTT событие %s: camera=%s label=%s score=%.2f action=%s snapshot=%s clip=%s",
+            event.event_id, event.camera, event.label, event.score, event.action,
+            event.has_snapshot, event.has_clip,
+        )
         if event.action not in self.cfg.alerts.actions:
             log.debug("Событие %s: действие '%s' не в alerts.actions", event.event_id, event.action)
             return
@@ -175,6 +182,15 @@ class AlertBot:
         elif cmd == "/refresh":
             await self.refresh_groups()
             await self.tg.send_message(chat_id, "Группы камер обновлены из Frigate.", thread_id)
+        elif cmd.startswith("/debug"):
+            arg = text.split()[1].lower() if len(text.split()) > 1 else "debug"
+            if arg in ("off", "info", "default"):
+                arg = self.cfg.logging.level.lower()
+            if set_log_level(arg):
+                log.info("Смена уровня логирования на %s (chat=%s)", arg.upper(), chat_id)
+                await self.tg.send_message(chat_id, f"Логирование: {arg.upper()}", thread_id)
+            else:
+                await self.tg.send_message(chat_id, f"Неверный уровень логирования: {arg}", thread_id)
 
     async def _send_help(self, chat_id: int, thread_id: int | None) -> None:
         lines = [

@@ -43,6 +43,13 @@ def _as_float(value: Any, name: str) -> float:
 
 
 @dataclass
+class LoggingConfig:
+    level: str = "INFO"
+    file: str | None = None
+    http_debug: bool = False
+
+
+@dataclass
 class FrigateConfig:
     url: str = "http://frigate:5000"
     username: str | None = None
@@ -131,11 +138,20 @@ class AppConfig:
     alerts: AlertsConfig
     groups: GroupsConfig
     routes: list[Route]
-    log_level: str = "INFO"
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
 
     @property
     def known_chats(self) -> set[int]:
         return {r.chat_id for r in self.routes}
+
+
+def _parse_logging(raw: dict, legacy_level: Any = None) -> LoggingConfig:
+    level = raw.get("level", legacy_level) or "INFO"
+    return LoggingConfig(
+        level=str(level).upper(),
+        file=str(raw["file"]) if raw.get("file") else None,
+        http_debug=bool(raw.get("http_debug", False)),
+    )
 
 
 def _parse_frigate(raw: dict) -> FrigateConfig:
@@ -251,6 +267,6 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
         telegram=_parse_telegram(raw.get("telegram") or {}),
         alerts=_parse_alerts(raw.get("alerts") or {}),
         groups=_parse_groups(raw.get("groups") or {}),
+        logging=_parse_logging(raw.get("logging") or {}, raw.get("log_level")),
         routes=_parse_routes(raw.get("routes") or []),
-        log_level=str(raw.get("log_level", "INFO")),
     )

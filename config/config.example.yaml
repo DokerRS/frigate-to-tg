@@ -2,7 +2,10 @@
 # Скопируйте в config/config.yaml — этот файл не попадает в git (см. .gitignore),
 # поэтому секреты можно писать прямо сюда.
 
-log_level: INFO               # DEBUG | INFO | WARNING | ERROR
+logging:
+  level: INFO                 # DEBUG | INFO | WARNING | ERROR (можно менять на лету командой /debug в чате)
+  # file: /data/frigate-to-tg.log   # дополнительный лог в файл (по умолчанию только stdout)
+  # http_debug: false         # true = отладочные логи HTTP-запросов (httpx/httpcore)
 
 frigate:
   url: http://frigate:5000

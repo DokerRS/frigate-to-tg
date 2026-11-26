@@ -33,8 +33,11 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    docker compose logs -f
    ```
 
-В `docker-compose.yml` указаны сети `frigate_default` и `mqtt_default` (external). Замените
-имена на свои (`docker network ls`) или укажите в `config.yaml` прямые адреса Frigate/MQTT.
+Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `config.yaml`
+укажите прямые адреса Frigate/MQTT (например `http://192.168.1.10:5000`). Если Frigate/MQTT
+доступны по именам контейнеров — раскомментируйте блок `networks` в compose и подключите
+контейнер к их сети (`docker network ls`).
+Блок `logging` в compose ограничивает размер логов контейнера (json-file, 10 МБ × 3 файла).
 
 ## Конфигурация
 
@@ -42,6 +45,11 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
 при желании можно подставлять из переменных окружения.
 
 ```yaml
+logging:
+  level: INFO               # DEBUG | INFO | WARNING | ERROR
+  # file: /data/app.log     # дополнительный лог в файл (по умолчанию только stdout/docker logs)
+  # http_debug: false       # true = отладочные логи HTTP-запросов (httpx/httpcore)
+
 frigate:
   url: http://frigate:5000
   # auth: { user: ..., password: ... }   # basic auth
@@ -77,7 +85,15 @@ routes:
 в MQTT используются внутренние id камер, а не `friendly_name`).
 
 Команды бота: `/chatid` (id чата и топика), `/groups` (известные группы камер),
-`/refresh` (перечитать группы из Frigate), `/help`.
+`/refresh` (перечитать группы из Frigate), `/debug [DEBUG|INFO|WARNING|ERROR]` (сменить
+уровень логирования на лету), `/help`.
+
+## Логи
+
+Основной лог — stdout контейнера (`docker compose logs -f`). Настройки — в секции `logging`
+конфига: уровень, файл, отладка HTTP. При `level: DEBUG` в лог пишется каждое полученное
+MQTT-событие (camera/label/score/topik) и причины пропуска алертов. Менять уровень можно
+без перезапуска: `/debug DEBUG`.
 
 ## Разработка
 

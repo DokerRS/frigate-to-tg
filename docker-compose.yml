@@ -6,16 +6,22 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/config.yaml:/app/config/config.yaml:ro
-    networks:
-      - frigate
-      - mqtt
+      # разкомментируйте, если в config.yaml задан logging.file
+      # - ./logs:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-networks:
-  frigate:
-    # общая сеть с контейнером frigate (измените имя под вашу конфигурацию)
-    name: frigate_default
-    external: true
-  mqtt:
-    # общая сеть с mqtt-брокером (например, mosquitto)
-    name: mqtt_default
-    external: true
+    # Если Frigate/MQTT работают в своей docker-сети и доступны по именам контейнеров —
+    # подключите контейнер к этой сети (имя посмотрите через `docker network ls`):
+    # networks:
+    #   - frigate
+    # Иначе оставьте как есть (compose создаст свою сеть) и укажите в config.yaml
+    # прямые адреса, например frigate.url: http://192.168.1.10:5000, mqtt.host: 192.168.1.10
+
+# networks:
+#   frigate:
+#     name: frigate_default
+#     external: true

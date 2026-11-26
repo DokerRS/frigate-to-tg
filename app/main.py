@@ -6,11 +6,11 @@ import asyncio
 import logging
 import os
 import signal
-import sys
 
 from .bot import AlertBot
-from .config import ConfigError, load_config
+from .config import AppConfig, ConfigError, LoggingConfig, load_config
 from .frigate_client import FrigateClient
+from .logging_setup import setup_logging
 from .mqtt_client import MqttListener
 from .router import Router
 from .telegram import TelegramBot
@@ -18,28 +18,16 @@ from .telegram import TelegramBot
 DEFAULT_CONFIG = os.environ.get("CONFIG_PATH", "config/config.yaml")
 
 
-def setup_logging(level: str) -> None:
-    root = logging.getLogger()
-    for handler in root.handlers:
-        root.removeHandler(handler)
-    logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-
-
 async def main() -> int:
     log = logging.getLogger("frigate-to-tg")
     try:
-        cfg = load_config(DEFAULT_CONFIG)
+        cfg: AppConfig = load_config(DEFAULT_CONFIG)
     except ConfigError as exc:
-        setup_logging("INFO")
+        setup_logging(LoggingConfig())
         log.error("Ошибка конфигурации: %s", exc)
         return 2
-    setup_logging(cfg.log_level)
+    setup_logging(cfg.logging)
+    log.info("Конфигурация загружена: %s (log_level=%s)", DEFAULT_CONFIG, cfg.logging.level)
 
     frigate = FrigateClient(cfg.frigate)
     tg = TelegramBot(cfg.telegram)
