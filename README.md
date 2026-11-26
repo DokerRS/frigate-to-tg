@@ -35,7 +35,7 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    ```
 
 В `docker-compose.yml` указаны сети `frigate_default` и `mqtt_default` (external). Замените
-имена на свои (`docker network ls`) или укажите прямые адреса в `.env`.
+имена на свои (`docker network ls`) или укажите в `config.yaml` прямые адреса Frigate/MQTT.
 
 ## Конфигурация
 

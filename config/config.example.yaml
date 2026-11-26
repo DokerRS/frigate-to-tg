@@ -1,5 +1,7 @@
 # Пример конфигурации frigate-to-tg.
-# Значения ${VAR} и ${VAR:-default} подставляются из переменных окружения.
+# Единственная переменная окружения — TELEGRAM_BOT_TOKEN (из .env).
+
+log_level: INFO               # DEBUG | INFO | WARNING | ERROR
 
 frigate:
   url: http://frigate:5000

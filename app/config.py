@@ -131,6 +131,7 @@ class AppConfig:
     alerts: AlertsConfig
     groups: GroupsConfig
     routes: list[Route]
+    log_level: str = "INFO"
 
     @property
     def known_chats(self) -> set[int]:
@@ -251,4 +252,5 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
         alerts=_parse_alerts(raw.get("alerts") or {}),
         groups=_parse_groups(raw.get("groups") or {}),
         routes=_parse_routes(raw.get("routes") or []),
+        log_level=str(raw.get("log_level", "INFO")),
     )

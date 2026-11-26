@@ -19,6 +19,9 @@ DEFAULT_CONFIG = os.environ.get("CONFIG_PATH", "config/config.yaml")
 
 
 def setup_logging(level: str) -> None:
+    root = logging.getLogger()
+    for handler in root.handlers:
+        root.removeHandler(handler)
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -29,13 +32,14 @@ def setup_logging(level: str) -> None:
 
 
 async def main() -> int:
-    setup_logging(os.environ.get("LOG_LEVEL", "INFO"))
     log = logging.getLogger("frigate-to-tg")
     try:
         cfg = load_config(DEFAULT_CONFIG)
     except ConfigError as exc:
+        setup_logging("INFO")
         log.error("Ошибка конфигурации: %s", exc)
         return 2
+    setup_logging(cfg.log_level)
 
     frigate = FrigateClient(cfg.frigate)
     tg = TelegramBot(cfg.telegram)
