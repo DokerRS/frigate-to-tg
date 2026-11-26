@@ -25,14 +25,11 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    cp .env.example .env
    cp config/config.example.yaml config/config.yaml
    ```
-3. Заполните `.env`:
+3. Заполните `.env` (в нём только секреты, остальное — в `config/config.yaml`):
    - `TELEGRAM_BOT_TOKEN` — токен бота;
-   - `TG_CHAT_ID` — id чата. У групп он отрицательный и у ботов выглядит как `-100xxxxxxxxxx`
-     (напишите боту в чат `/chatid`, чтобы получить);
-   - `TG_TOPIC_ALL` — id топика (виден в ссылке на сообщение: `.../12345/42` → `42`), `0` — без топика;
-   - `FRIGATE_URL`, `MQTT_HOST`;
    - `TELEGRAM_PROXY_URL` — например `http://user:pass@192.168.1.5:3128` (пусто = без прокси).
-4. Настройте маршруты в `config/config.yaml` (см. ниже).
+4. Настройте `config/config.yaml`: адреса Frigate/MQTT и маршруты (см. ниже).
+   `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
 5. Запуск:
    ```bash
    docker compose up -d
@@ -55,7 +52,7 @@ frigate:
 mqtt:
   host: mqtt
   port: 1883
-  topic: frigate/events
+  prefix: frigate           # события приходят в <prefix>/events
 
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}

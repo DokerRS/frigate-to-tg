@@ -2,7 +2,7 @@
 # Значения ${VAR} и ${VAR:-default} подставляются из переменных окружения.
 
 frigate:
-  url: ${FRIGATE_URL:-http://frigate:5000}
+  url: http://frigate:5000
   # авторизация (если Frigate закрыт логином): basic auth или токен
   # auth:
   #   user: ${FRIGATE_USER}
@@ -11,11 +11,11 @@ frigate:
   snapshot_quality: 80
 
 mqtt:
-  host: ${MQTT_HOST:-mqtt}
+  host: mqtt
   port: 1883
   # username: ${MQTT_USER}
   # password: ${MQTT_PASSWORD}
-  topic: frigate/events
+  prefix: frigate             # MQTT-префикс Frigate; события приходят в <prefix>/events
   tls: false
 
 telegram:
@@ -44,15 +44,15 @@ groups:
 # chat_id группы Telegram берите со знаком минус (у ботов он вида -100xxxxxxxxxx).
 # thread_id — id топика (виден в ссылке на сообщение топика).
 routes:
-  - chat_id: ${TG_CHAT_ID}
-    thread_id: ${TG_TOPIC_ALL:-0}   # 0 => без топика (общий чат)
+  - chat_id: -1001234567890     # узнайте через /chatid в чате
+    thread_id: 0                # 0 => без топика (общий чат)
     title: "Все камеры"
     groups: []          # пустой список + пустые cameras = все камеры
     objects: [person, car]
     min_score: 0.7
 
   # Пример: все камеры из frigate-группы "front" -> топик "Передняя дверь"
-  # - chat_id: ${TG_CHAT_ID}
+  # - chat_id: -1001234567890
   #   thread_id: 42
   #   title: "Передняя дверь"
   #   groups: [front]

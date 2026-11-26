@@ -58,9 +58,13 @@ class MqttConfig:
     port: int = 1883
     username: str | None = None
     password: str | None = None
-    topic: str = "frigate/events"
+    prefix: str = "frigate"
     client_id: str = "frigate-to-tg"
     tls: bool = False
+
+    @property
+    def events_topic(self) -> str:
+        return f"{self.prefix.strip('/')}/events"
 
 
 @dataclass
@@ -151,7 +155,7 @@ def _parse_mqtt(raw: dict) -> MqttConfig:
         port=_as_int(raw.get("port", 1883), "mqtt.port"),
         username=raw.get("username") or None,
         password=raw.get("password") or None,
-        topic=str(raw.get("topic", "frigate/events")),
+        prefix=str(raw.get("prefix", raw.get("topic", "frigate")).removesuffix("/events").strip("/") or "frigate"),
         client_id=str(raw.get("client_id", "frigate-to-tg")),
         tls=bool(raw.get("tls", False)),
     )

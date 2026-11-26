@@ -38,8 +38,8 @@ class MqttListener:
         if getattr(reason_code, "is_failure", False):
             log.error("MQTT подключение отклонено: %s", reason_code)
             return
-        client.subscribe(self._cfg.topic, qos=1)
-        log.info("Подписан на MQTT-топик '%s'", self._cfg.topic)
+        client.subscribe(self._cfg.events_topic, qos=1)
+        log.info("Подписан на MQTT-топик '%s'", self._cfg.events_topic)
 
     def _on_disconnect(self, _client, _userdata, _flags, reason_code, _properties=None) -> None:
         log.warning("MQTT соединение разорвано: %s (переподключение автоматически)", reason_code)
