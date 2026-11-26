@@ -1,0 +1,22 @@
+services:
+  frigate-to-tg:
+    build: .
+    image: frigate-to-tg:latest
+    container_name: frigate-to-tg
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+    networks:
+      - frigate
+      - mqtt
+
+networks:
+  frigate:
+    # общая сеть с контейнером frigate (измените имя под вашу конфигурацию)
+    name: frigate_default
+    external: true
+  mqtt:
+    # общая сеть с mqtt-брокером (например, mosquitto)
+    name: mqtt_default
+    external: true
