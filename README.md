@@ -7,7 +7,9 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
 ## Возможности
 
 - Подписка на MQTT-топик `frigate/events` (Frigate 0.14+).
-- Фото события (snapshot, при отсутствии — thumbnail) с подписью `{camera}: {label} — {score}%`.
+- Фото события (snapshot, при отсутствии — thumbnail) с красивой карточкой: эмодзи объекта,
+  % уверенности со шкалой, камера, зоны, время. Отключается `alerts.caption_card: false`
+  (тогда используется простой `caption_format`).
 - Кнопка «🎬 Видео» → бот скачивает `clip.mp4` из Frigate и отправляет в чат
   (если больше `video_max_mb` — отправляется как документ).
 - Маршрутизация: `группа камер / список камер → chat_id + thread_id (топик)`.
@@ -63,6 +65,11 @@ mqtt:
 telegram:
   bot_token: "123456:ABC-DEF..."
   proxy_url: ""               # http://... или socks5://... (пусто = без прокси)
+
+alerts:
+  caption_card: true          # красивая карточка под фото (эмодзи, шкала %, зоны, время)
+  timezone: Asia/Almaty       # таймзона времени в карточке
+  # caption_format: "{camera}: {label} — {score}%"  # простая подпись (caption_card: false)
 
 groups:
   from_frigate: true          # использовать camera_groups из Frigate

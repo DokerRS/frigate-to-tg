@@ -98,7 +98,10 @@ class AlertBot:
                 return
         self._mark_sent(event.event_id)
         self._event_targets[event.event_id] = [(r.chat_id, r.thread_id) for r in routes]
-        caption = event.caption(self.cfg.alerts.caption_format)
+        if self.cfg.alerts.caption_card:
+            caption = event.card_html(self.cfg.alerts.timezone)
+        else:
+            caption = html.escape(event.caption(self.cfg.alerts.caption_format))
         for route in routes:
             if route.send_video is None:
                 enabled = self.cfg.alerts.send_video_button
@@ -115,9 +118,8 @@ class AlertBot:
         caption: str,
         markup: dict | None,
     ) -> None:
-        safe_caption = html.escape(caption)
         try:
-            await self.tg.send_photo(route.chat_id, image, safe_caption, route.thread_id, markup)
+            await self.tg.send_photo(route.chat_id, image, caption, route.thread_id, markup)
             log.info("Отправлено событие %s (%s %s) -> %s", event.event_id, event.camera, event.label, route.describe())
         except TelegramError as exc:
             log.error("Не удалось отправить фото в %s: %s", route.describe(), exc)

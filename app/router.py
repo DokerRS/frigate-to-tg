@@ -2,12 +2,49 @@
 
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import AppConfig, Route
 
 log = logging.getLogger(__name__)
+
+# Эмодзи для популярных объектов Frigate (для карточки).
+LABEL_EMOJI = {
+    "person": "👤",
+    "face": "🙂",
+    "car": "🚗",
+    "truck": "🚚",
+    "bus": "🚌",
+    "motorcycle": "🏍️",
+    "bicycle": "🚲",
+    "dog": "🐕",
+    "cat": "🐈",
+    "bird": "🐦",
+    "horse": "🐎",
+    "cow": "🐄",
+    "sheep": "🐑",
+    "bear": "🐻",
+    "fox": "🦊",
+    "raccoon": "🦝",
+    "deer": "🦌",
+    "package": "📦",
+    "amazon": "📦",
+}
+DEFAULT_EMOJI = "⚠️"
+
+
+def label_emoji(label: str) -> str:
+    return LABEL_EMOJI.get(label.lower(), DEFAULT_EMOJI)
+
+
+def score_bar(score: float, blocks: int = 5) -> str:
+    """Визуальная шкала уверенности: ▰▰▰▱▱."""
+    filled = round(max(0.0, min(1.0, score)) * blocks)
+    return "▰" * filled + "▱" * (blocks - filled)
 
 
 @dataclass(frozen=True)
@@ -34,6 +71,34 @@ class EventInfo:
             id=self.event_id,
             sub_label=self.sub_label or "",
         )
+
+    def card_html(self, tz_name: str | None = None) -> str:
+        """Красивая HTML-подпись к фото (parse_mode=HTML, значения экранированы)."""
+        pct = int(round(self.score * 100))
+        lines = [
+            f"{label_emoji(self.label)} <b>{html.escape(self.label.capitalize())}</b>"
+            f" <code>{pct}%</code> {score_bar(self.score)}",
+            f"📷 <b>{html.escape(self.camera)}</b>",
+        ]
+        if self.sub_label:
+            lines.append(f"🏷 {html.escape(self.sub_label)}")
+        if self.zones:
+            lines.append("📍 " + html.escape(", ".join(self.zones)))
+        ts = self._time_str(tz_name)
+        if ts:
+            lines.append(f"🕒 {ts}")
+        return "\n".join(lines)
+
+    def _time_str(self, tz_name: str | None) -> str:
+        if not self.start_time:
+            return ""
+        dt = datetime.fromtimestamp(self.start_time)
+        if tz_name:
+            try:
+                dt = dt.astimezone(ZoneInfo(tz_name))
+            except (ZoneInfoNotFoundError, ValueError):
+                log.warning("Неизвестная таймзона '%s', показываю время сервера", tz_name)
+        return dt.strftime("%d.%m.%Y %H:%M:%S")
 
 
 def parse_event(payload: dict) -> EventInfo | None:

@@ -87,3 +87,21 @@ def test_global_min_score():
 def test_caption_format():
     ev = parse_event(EVENT)
     assert ev.caption("{camera}: {label} — {score}%") == "front_door: person — 90%"
+
+
+def test_card_html():
+    ev = parse_event(EVENT)
+    card = ev.card_html()
+    assert "👤 <b>Person</b>" in card
+    assert "<code>90%</code>" in card
+    assert "📷 <b>front_door</b>" in card
+    assert "📍 driveway" in card
+    assert "▰▰▰▰▱" in card
+
+
+def test_card_html_escapes_and_unknown_label():
+    ev = parse_event(dict(EVENT, after=dict(EVENT["after"], label="<b>x", camera="a&b")))
+    card = ev.card_html()
+    assert "&lt;b&gt;" in card
+    assert "a&amp;b" in card
+    assert "⚠️" in card

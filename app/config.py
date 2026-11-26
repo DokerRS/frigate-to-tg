@@ -91,6 +91,8 @@ class AlertsConfig:
     min_score: float = 0.0
     use_thumbnail_fallback: bool = True
     caption_format: str = "{camera}: {label} — {score}%"
+    caption_card: bool = True
+    timezone: str | None = None
     send_video_button: bool = True
     video_max_mb: float = 45.0
     event_ttl_minutes: int = 120
@@ -206,6 +208,8 @@ def _parse_alerts(raw: dict) -> AlertsConfig:
         min_score=_as_float(raw.get("min_score", 0.0), "alerts.min_score"),
         use_thumbnail_fallback=bool(raw.get("use_thumbnail_fallback", True)),
         caption_format=str(raw.get("caption_format", AlertsConfig.caption_format)),
+        caption_card=bool(raw.get("caption_card", True)),
+        timezone=(str(raw.get("timezone")).strip() or None) if raw.get("timezone") else None,
         send_video_button=bool(raw.get("send_video_button", True)),
         video_max_mb=_as_float(raw.get("video_max_mb", 45.0), "alerts.video_max_mb"),
         event_ttl_minutes=_as_int(raw.get("event_ttl_minutes", 120), "alerts.event_ttl_minutes"),
