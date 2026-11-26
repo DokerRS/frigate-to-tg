@@ -257,7 +257,16 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     p = Path(path)
     if not p.is_file():
         raise ConfigError(f"Файл конфигурации не найден: {p}")
-    raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    try:
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        where = ""
+        mark = getattr(exc, "problem_mark", None) or getattr(exc, "context_mark", None)
+        if mark is not None:
+            where = f" (строка {mark.line + 1}, колонка {mark.column + 1})"
+        problem = getattr(exc, "problem", None) or getattr(exc, "context", None) or str(exc)
+        raise ConfigError(f"Ошибка YAML в {p}{where}: {problem}. "
+                          "Элементы списка должны начинаться с '-' в одном столбце.") from exc
     if not isinstance(raw, dict):
         raise ConfigError("Корень конфигурации должен быть словарём")
     raw = _substitute_env(raw)
