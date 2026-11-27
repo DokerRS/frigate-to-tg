@@ -4,26 +4,10 @@ services:
     image: frigate-to-tg:latest
     container_name: frigate-to-tg
     restart: unless-stopped
-    # Вся конфигурация — в .env рядом с этим файлом (см. .env.example)
     env_file:
       - .env
-    # если в .env задан LOG_FILE — раскомментируйте том для логов:
-    # volumes:
-    #   - ./logs:/data
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-
-    # Если Frigate работает в своей docker-сети и доступен по имени контейнера —
-    # подключите контейнер к этой сети (имя посмотрите через `docker network ls`):
-    # networks:
-    #   - frigate
-    # Иначе оставьте как есть (compose создаст свою сеть) и укажите в .env
-    # прямой адрес, например FRIGATE_URL=http://192.168.1.10:5000
-
-# networks:
-#   frigate:
-#     name: frigate_default
-#     external: true

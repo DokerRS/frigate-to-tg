@@ -52,8 +52,19 @@
 
 Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `.env`
 укажите прямой адрес Frigate (например `FRIGATE_URL=http://192.168.1.10:5000`). Если Frigate доступен
-по имени контейнера — раскомментируйте блок `networks` в compose и подключите
-контейнер к его сети (`docker network ls`).
+по имени контейнера — добавьте в compose подключение к его сети (`docker network ls`):
+
+```yaml
+    networks:
+      - frigate
+# ...
+networks:
+  frigate:
+    name: frigate_default
+    external: true
+```
+
+Если в `.env` задан `LOG_FILE`, добавьте том для логов: `volumes: [./logs:/data]`.
 Блок `logging` в compose ограничивает размер логов контейнера (json-file, 10 МБ × 3 файла).
 
 ## Конфигурация
