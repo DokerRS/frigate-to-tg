@@ -8,12 +8,12 @@
 
 - Опрос Frigate API `GET /api/events` (Frigate 0.14+) — MQTT не нужен.
 - Фото события (snapshot, при отсутствии — thumbnail) с компактной подписью в две строки:
-  `🚗 Car — balkon · zone` и `80% · 🕒 26.11.2025 20:13`. Отключается `alerts.caption_card: false`
-  (тогда используется простой `caption_format`).
+  `🚗 Car — balkon · zone` и `80% · 🕒 26.11.2025 20:13`. Отключается `CAPTION_CARD=false`
+  (тогда используется простой `CAPTION_FORMAT`).
 - Кнопка «🎬 Видео» → бот скачивает `clip.mp4` из Frigate и отправляет в чат
   (если больше `video_max_mb` — отправляется как документ).
 - Кнопка «🔗 Открыть в Frigate» → ссылка на событие в веб-интерфейсе Frigate
-  (`frigate.public_url/review?id=<event_id>`). Для внешних адресов укажите `public_url`.
+  (`FRIGATE_PUBLIC_URL/review?id=<event_id>`). Для внешних адресов укажите `FRIGATE_PUBLIC_URL`.
 - Маршрутизация: `группа камер / список камер → chat_id + thread_id (топик)`.
   Группы читаются прямо из конфига Frigate (`camera_groups`), плюс можно задать свои.
 - Фильтры по объектам и минимальному score; одно сообщение на событие.
@@ -24,12 +24,13 @@
 
 1. Создайте бота у [@BotFather](https://t.me/BotFather), получите токен.
    Для отправки в топики бот должен быть добавлен в группу-форум и иметь право писать сообщения.
-2. Скопируйте конфиг:
+2. Скопируйте пример конфигурации:
    ```bash
-   cp config/config.example.yaml config/config.yaml
+   cp .env.example .env
    ```
-   `config/config.yaml` не попадает в git (`.gitignore`), поэтому токен и пароли пишете прямо в него.
-3. Заполните `config/config.yaml`: токен бота, адрес Frigate, прокси Telegram, маршруты
+   `.env` не попадает в git (`.gitignore`), поэтому токен и пароли пишете прямо в него.
+   docker compose подхватывает `.env` автоматически (файл рядом с compose-файлом).
+3. Заполните `.env`: токен бота, адрес Frigate, прокси Telegram, маршруты
    (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
 4. Запуск. Есть два варианта:
 
@@ -49,58 +50,58 @@
    docker compose logs -f
    ```
 
-Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `config.yaml`
-укажите прямой адрес Frigate (например `http://192.168.1.10:5000`). Если Frigate доступен
+Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `.env`
+укажите прямой адрес Frigate (например `FRIGATE_URL=http://192.168.1.10:5000`). Если Frigate доступен
 по имени контейнера — раскомментируйте блок `networks` в compose и подключите
 контейнер к его сети (`docker network ls`).
 Блок `logging` в compose ограничивает размер логов контейнера (json-file, 10 МБ × 3 файла).
 
 ## Конфигурация
 
-Единственный файл — `config/config.yaml`. Значения `${VAR}` и `${VAR:-default}`
-при желании можно подставлять из переменных окружения.
+Вся конфигурация — переменные окружения, которые читаются из `.env`
+(полный пример с комментариями — [.env.example](.env.example)). Реальные переменные
+окружения имеют приоритет над `.env`. Путь к файлу можно изменить переменной `ENV_PATH`.
 
-```yaml
-logging:
-  level: INFO               # DEBUG | INFO | WARNING | ERROR
-  # file: /data/app.log     # дополнительный лог в файл (по умолчанию только stdout/docker logs)
-  # http_debug: false       # true = отладочные логи HTTP-запросов (httpx/httpcore)
+Основные переменные:
 
-frigate:
-  url: http://frigate:5000
-  # public_url: http://192.168.1.10:5000  # внешний адрес для кнопки «Открыть в Frigate»
-  # auth: { user: ..., password: ... }   # basic auth
-  # auth: { token: ... }                 # или токен Frigate
-  poll_interval: 3            # как часто (сек) опрашивать /api/events
-  lookback: 60                # за сколько секунд назад смотреть события при опросе
+```dotenv
+# Telegram
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_PROXY_URL=             # http://... или socks5://... (пусто = без прокси)
 
-telegram:
-  bot_token: "123456:ABC-DEF..."
-  proxy_url: ""               # http://... или socks5://... (пусто = без прокси)
+# Frigate
+FRIGATE_URL=http://192.168.1.10:5000
+#FRIGATE_PUBLIC_URL=http://frigate.example.com   # внешний адрес для кнопки «Открыть в Frigate»
+#FRIGATE_USER=admin
+#FRIGATE_PASSWORD=secret        # или #FRIGATE_TOKEN=<frigate api token>
+FRIGATE_POLL_INTERVAL=3         # как часто (сек) опрашивать /api/events
+FRIGATE_LOOKBACK=60             # за сколько секунд назад смотреть события при опросе
 
-alerts:
-  caption_card: true          # компактная подпись под фото в две строки (по умолчанию true)
-  timezone: Asia/Almaty       # таймзона времени в карточке
-  # caption_format: "{camera}: {label} — {score}%"  # простая подпись (caption_card: false)
+# Логи и поведение алертов
+LOG_LEVEL=INFO                  # DEBUG | INFO | WARNING | ERROR
+#LOG_FILE=/data/app.log         # дополнительный лог в файл (по умолчанию только stdout)
+CAPTION_CARD=true               # компактная подпись под фото в две строки
+TIMEZONE=Asia/Almaty            # таймзона времени в карточке
+#SEND_VIDEO_BUTTON=true         # кнопка «Видео» под фото
+#ALERT_MIN_SCORE=0.7            # общий минимальный score
 
-groups:
-  from_frigate: true          # использовать camera_groups из Frigate
-  extra:
-    front: [front_door_cam, porch_cam]
+# Группы камер
+GROUPS_FROM_FRIGATE=true        # использовать camera_groups из Frigate
+#GROUP_FRONT=front_door_cam,porch_cam   # своя группа (через запятую)
 
-routes:
-  - chat_id: -1001234567890
-    thread_id: 42             # 0 / отсутствует => без топика
-    title: "Передняя дверь"
-    groups: [front]           # группы (frigate или extra)
-    # cameras: [driveway_cam] # можно конкретные камеры
-    # objects: [person, car]  # фильтр по объектам
-    # min_score: 0.7
-    # send_video: true        # кнопка «Видео» (по умолчанию — из alerts)
+# Маршруты: чат + топик <- группы/камеры (нумерация произвольная)
+ROUTE_1_CHAT_ID=-1001234567890
+ROUTE_1_THREAD_ID=42            # 0 / отсутствует => без топика
+ROUTE_1_TITLE=Передняя дверь
+ROUTE_1_GROUPS=front            # группы (frigate или GROUP_*)
+#ROUTE_1_CAMERAS=driveway_cam   # можно конкретные камеры (через запятую)
+#ROUTE_1_OBJECTS=person,car     # фильтр по объектам
+#ROUTE_1_MIN_SCORE=0.7
+#ROUTE_1_SEND_VIDEO=true        # кнопка «Видео» (по умолчанию — из SEND_VIDEO_BUTTON)
 ```
 
-Маршрут без `groups` и `cameras` — «все камеры». Если группа не найдена, бот предупредит в логе
-(проверьте, что `groups.from_frigate: true` и имя группы совпадает с `camera_groups` в Frigate;
+Маршрут без `GROUPS` и `CAMERAS` — «все камеры». Если группа не найдена, бот предупредит в логе
+(проверьте, что `GROUPS_FROM_FRIGATE=true` и имя группы совпадает с `camera_groups` в Frigate;
 в API используются внутренние id камер, а не `friendly_name`).
 
 Команды бота: `/chatid` (id чата и топика), `/groups` (известные группы камер),
@@ -109,8 +110,8 @@ routes:
 
 ## Логи
 
-Основной лог — stdout контейнера (`docker compose logs -f`). Настройки — в секции `logging`
-конфига: уровень, файл, отладка HTTP. При `level: DEBUG` в лог пишется каждое новое
+Основной лог — stdout контейнера (`docker compose logs -f`). Настройки — переменные
+`LOG_LEVEL`, `LOG_FILE`, `LOG_HTTP_DEBUG`. При `LOG_LEVEL=DEBUG` в лог пишется каждое новое
 событие Frigate (camera/label/score) и причины пропуска алертов. Менять уровень можно
 без перезапуска: `/debug DEBUG`.
 
@@ -132,5 +133,5 @@ routes:
 python -m venv .venv && .venv\Scripts\activate   # Windows
 pip install -r requirements.txt pytest
 python -m pytest
-CONFIG_PATH=config/config.yaml python -m app
+copy .env.example .env && python -m app   # или задайте переменные окружения напрямую
 ```

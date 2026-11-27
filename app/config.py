@@ -1,4 +1,4 @@
-"""Загрузка и валидация конфигурации из YAML с подстановкой переменных окружения."""
+"""Загрузка конфигурации из переменных окружения и .env файла."""
 
 from __future__ import annotations
 
@@ -6,40 +6,44 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-
-import yaml
-
-_ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
 class ConfigError(Exception):
     """Ошибка конфигурации."""
 
 
-def _substitute_env(value: Any) -> Any:
-    """Рекурсивно раскрывает ${VAR} и ${VAR:-default} в строках конфигурации."""
-    if isinstance(value, dict):
-        return {k: _substitute_env(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_substitute_env(v) for v in value]
-    if isinstance(value, str):
-        return _ENV_RE.sub(lambda m: os.environ.get(m.group(1)) or (m.group(2) or ""), value)
-    return value
+_ENV_LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+_ROUTE_KEY_RE = re.compile(r"^ROUTE_(\d+)_(\w+)$")
+_GROUP_PREFIX = "GROUP_"
+_TRUE = {"1", "true", "yes", "on", "да"}
+_FALSE = {"0", "false", "no", "off", "нет"}
 
 
-def _as_int(value: Any, name: str) -> int:
+def _read_env_file(path: str | os.PathLike[str]) -> dict[str, str]:
+    """Разбирает .env: KEY=VALUE, строки с # — комментарии, кавычки необязательны."""
+    p = Path(path)
+    if not p.is_file():
+        return {}
     try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(f"Поле '{name}' должно быть числом, получено: {value!r}") from exc
-
-
-def _as_float(value: Any, name: str) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError) as exc:
-        raise ConfigError(f"Поле '{name}' должно быть числом, получено: {value!r}") from exc
+        text = p.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"Не удалось прочитать {p}: {exc}") from exc
+    values: dict[str, str] = {}
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = _ENV_LINE_RE.match(line)
+        if not m:
+            raise ConfigError(f"{p}, строка {lineno}: ожидалось KEY=VALUE, получено: {raw.strip()!r}")
+        key, val = m.group(1), m.group(2)
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]
+        elif not val.startswith(("\"", "'")):
+            # inline-комментарий: "KEY=value # комментарий" (как в стандартном dotenv)
+            val = re.split(r"\s+#", val, maxsplit=1)[0].strip()
+        values[key] = val
+    return values
 
 
 @dataclass
@@ -133,92 +137,137 @@ class AppConfig:
         return {r.chat_id for r in self.routes}
 
 
-def _parse_logging(raw: dict, legacy_level: Any = None) -> LoggingConfig:
-    level = raw.get("level", legacy_level) or "INFO"
+class _Env:
+    """Доступ к переменным с приведением типов; ошибки — с именем переменной."""
+
+    def __init__(self, values: dict[str, str]):
+        self._v = values
+
+    def keys(self):
+        return self._v.keys()
+
+    def get(self, name: str, default: str = "") -> str:
+        return (self._v.get(name) or default).strip()
+
+    def opt(self, name: str) -> str | None:
+        return self.get(name) or None
+
+    def int(self, name: str, default: int) -> int:
+        return self._num(name, default, int)
+
+    def float(self, name: str, default: float) -> float:
+        return self._num(name, default, float)
+
+    def _num(self, name: str, default, cast):
+        raw = self.get(name)
+        if not raw:
+            return default
+        try:
+            return cast(raw)
+        except ValueError as exc:
+            raise ConfigError(f"{name} должно быть числом, получено: {raw!r}") from exc
+
+    def bool(self, name: str, default: bool) -> bool:
+        raw = self.get(name).lower()
+        if not raw:
+            return default
+        if raw in _TRUE:
+            return True
+        if raw in _FALSE:
+            return False
+        raise ConfigError(f"{name}: ожидалось true/false, получено: {raw!r}")
+
+    def lst(self, name: str) -> tuple[str, ...]:
+        raw = self.get(name)
+        if not raw:
+            return ()
+        return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _parse_logging(env: _Env) -> LoggingConfig:
     return LoggingConfig(
-        level=str(level).upper(),
-        file=str(raw["file"]) if raw.get("file") else None,
-        http_debug=bool(raw.get("http_debug", False)),
+        level=env.get("LOG_LEVEL", "INFO").upper(),
+        file=env.opt("LOG_FILE"),
+        http_debug=env.bool("LOG_HTTP_DEBUG", False),
     )
 
 
-def _parse_frigate(raw: dict) -> FrigateConfig:
-    auth = raw.get("auth") or {}
+def _parse_frigate(env: _Env) -> FrigateConfig:
     return FrigateConfig(
-        url=str(raw.get("url", "http://frigate:5000")).rstrip("/"),
-        public_url=(str(raw["public_url"]).strip().rstrip("/") or None) if raw.get("public_url") else None,
-        username=auth.get("user") or raw.get("username") or None,
-        password=auth.get("password") or raw.get("password") or None,
-        token=auth.get("token") or raw.get("token") or None,
-        snapshot_quality=_as_int(raw.get("snapshot_quality", 80), "frigate.snapshot_quality"),
-        timeout=_as_float(raw.get("timeout", 30), "frigate.timeout"),
-        poll_interval=_as_float(raw.get("poll_interval", 3.0), "frigate.poll_interval"),
-        lookback=_as_int(raw.get("lookback", 60), "frigate.lookback"),
+        url=env.get("FRIGATE_URL", "http://frigate:5000").rstrip("/"),
+        public_url=(env.opt("FRIGATE_PUBLIC_URL") or "").rstrip("/") or None,
+        username=env.opt("FRIGATE_USER"),
+        password=env.opt("FRIGATE_PASSWORD"),
+        token=env.opt("FRIGATE_TOKEN"),
+        snapshot_quality=env.int("FRIGATE_SNAPSHOT_QUALITY", 80),
+        timeout=env.float("FRIGATE_TIMEOUT", 30.0),
+        poll_interval=env.float("FRIGATE_POLL_INTERVAL", 3.0),
+        lookback=env.int("FRIGATE_LOOKBACK", 60),
     )
 
 
-def _parse_telegram(raw: dict) -> TelegramConfig:
-    token = str(raw.get("bot_token", "")).strip()
+def _parse_telegram(env: _Env) -> TelegramConfig:
+    token = env.get("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise ConfigError("Не задан telegram.bot_token в config.yaml")
+        raise ConfigError("Не задан TELEGRAM_BOT_TOKEN (в .env или переменных окружения)")
     return TelegramConfig(
         bot_token=token,
-        proxy_url=(str(raw.get("proxy_url")).strip() or None) if raw.get("proxy_url") else None,
-        api_base=str(raw.get("api_base", "https://api.telegram.org")).rstrip("/"),
-        timeout=_as_float(raw.get("timeout", 60), "telegram.timeout"),
-        poll_timeout=_as_float(raw.get("poll_timeout", 30), "telegram.poll_timeout"),
+        proxy_url=env.opt("TELEGRAM_PROXY_URL"),
+        api_base=env.get("TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/"),
+        timeout=env.float("TELEGRAM_TIMEOUT", 60.0),
+        poll_timeout=env.float("TELEGRAM_POLL_TIMEOUT", 30.0),
     )
 
 
-def _parse_alerts(raw: dict) -> AlertsConfig:
+def _parse_alerts(env: _Env) -> AlertsConfig:
     return AlertsConfig(
-        one_alert_per_event=bool(raw.get("one_alert_per_event", True)),
-        require_snapshot=bool(raw.get("require_snapshot", True)),
-        min_score=_as_float(raw.get("min_score", 0.0), "alerts.min_score"),
-        use_thumbnail_fallback=bool(raw.get("use_thumbnail_fallback", True)),
-        caption_format=str(raw.get("caption_format", AlertsConfig.caption_format)),
-        caption_card=bool(raw.get("caption_card", True)),
-        timezone=(str(raw.get("timezone")).strip() or None) if raw.get("timezone") else None,
-        send_video_button=bool(raw.get("send_video_button", True)),
-        video_max_mb=_as_float(raw.get("video_max_mb", 45.0), "alerts.video_max_mb"),
-        event_ttl_minutes=_as_int(raw.get("event_ttl_minutes", 120), "alerts.event_ttl_minutes"),
+        one_alert_per_event=env.bool("ONE_ALERT_PER_EVENT", True),
+        require_snapshot=env.bool("REQUIRE_SNAPSHOT", True),
+        min_score=env.float("ALERT_MIN_SCORE", 0.0),
+        use_thumbnail_fallback=env.bool("USE_THUMBNAIL_FALLBACK", True),
+        caption_format=env.get("CAPTION_FORMAT", AlertsConfig.caption_format),
+        caption_card=env.bool("CAPTION_CARD", True),
+        timezone=env.opt("TIMEZONE"),
+        send_video_button=env.bool("SEND_VIDEO_BUTTON", True),
+        video_max_mb=env.float("VIDEO_MAX_MB", 45.0),
+        event_ttl_minutes=env.int("EVENT_TTL_MINUTES", 120),
     )
 
 
-def _parse_groups(raw: dict) -> GroupsConfig:
-    extra_raw = raw.get("extra") or {}
-    if not isinstance(extra_raw, dict):
-        raise ConfigError("groups.extra должен быть словарём 'имя группы: [камеры]'")
-    extra = {}
-    for name, cameras in extra_raw.items():
-        if isinstance(cameras, str):
-            cameras = [cameras]
-        if not isinstance(cameras, list) or not cameras:
-            raise ConfigError(f"groups.extra.{name}: ожидается непустой список камер")
-        extra[str(name)] = [str(c) for c in cameras]
-    return GroupsConfig(from_frigate=bool(raw.get("from_frigate", True)), extra=extra)
+def _parse_groups(env: _Env) -> GroupsConfig:
+    extra: dict[str, list[str]] = {}
+    for key in sorted(env.keys()):
+        if key.startswith(_GROUP_PREFIX) and key != "GROUPS_FROM_FRIGATE":
+            cameras = env.lst(key)
+            if cameras:
+                extra[key[len(_GROUP_PREFIX):].lower()] = list(cameras)
+    return GroupsConfig(from_frigate=env.bool("GROUPS_FROM_FRIGATE", True), extra=extra)
 
 
-def _parse_routes(raw: list) -> list[Route]:
-    if not isinstance(raw, list) or not raw:
-        raise ConfigError("Нужен непустой список routes")
+def _parse_routes(env: _Env) -> list[Route]:
+    indexes = sorted({int(m.group(1)) for key in env.keys() if (m := _ROUTE_KEY_RE.match(key))})
+    if not indexes:
+        raise ConfigError("Не задан ни один маршрут: добавьте ROUTE_1_CHAT_ID=... (см. .env.example)")
     routes: list[Route] = []
-    for idx, item in enumerate(raw):
-        if not isinstance(item, dict):
-            raise ConfigError(f"routes[{idx}] должен быть словарём")
-        if "chat_id" not in item:
-            raise ConfigError(f"routes[{idx}]: не задан chat_id")
-        thread_id = item.get("thread_id", item.get("topic_id"))
-        send_video = item.get("send_video")
+    for i in indexes:
+        p = f"ROUTE_{i}_"
+        chat_raw = env.get(p + "CHAT_ID")
+        if not chat_raw:
+            raise ConfigError(f"{p}CHAT_ID не задан")
+        try:
+            chat_id = int(chat_raw)
+        except ValueError as exc:
+            raise ConfigError(f"{p}CHAT_ID должно быть числом, получено: {chat_raw!r}") from exc
+        send_video_raw = env.get(p + "SEND_VIDEO")
         route = Route(
-            chat_id=_as_int(item["chat_id"], f"routes[{idx}].chat_id"),
-            thread_id=_as_int(thread_id, f"routes[{idx}].thread_id") if thread_id not in (None, "", 0, "0") else None,
-            title=str(item.get("title", "")),
-            groups=tuple(str(g) for g in ([item["groups"]] if isinstance(item.get("groups"), str) else item.get("groups") or [])),
-            cameras=tuple(str(c) for c in ([item["cameras"]] if isinstance(item.get("cameras"), str) else item.get("cameras") or [])),
-            objects=tuple(str(o).lower() for o in ([item["objects"]] if isinstance(item.get("objects"), str) else item.get("objects") or [])),
-            min_score=_as_float(item.get("min_score", 0.0), f"routes[{idx}].min_score"),
-            send_video=None if send_video is None else bool(send_video),
+            chat_id=chat_id,
+            thread_id=env.int(p + "THREAD_ID", 0) or None,
+            title=env.get(p + "TITLE"),
+            groups=env.lst(p + "GROUPS"),
+            cameras=env.lst(p + "CAMERAS"),
+            objects=tuple(o.lower() for o in env.lst(p + "OBJECTS")),
+            min_score=env.float(p + "MIN_SCORE", 0.0),
+            send_video=env.bool(p + "SEND_VIDEO", True) if send_video_raw else None,
         )
         if not route.groups and not route.cameras:
             route.title = route.title or "все камеры"
@@ -226,28 +275,16 @@ def _parse_routes(raw: list) -> list[Route]:
     return routes
 
 
-def load_config(path: str | os.PathLike[str]) -> AppConfig:
-    p = Path(path)
-    if not p.is_file():
-        raise ConfigError(f"Файл конфигурации не найден: {p}")
-    try:
-        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as exc:
-        where = ""
-        mark = getattr(exc, "problem_mark", None) or getattr(exc, "context_mark", None)
-        if mark is not None:
-            where = f" (строка {mark.line + 1}, колонка {mark.column + 1})"
-        problem = getattr(exc, "problem", None) or getattr(exc, "context", None) or str(exc)
-        raise ConfigError(f"Ошибка YAML в {p}{where}: {problem}. "
-                          "Элементы списка должны начинаться с '-' в одном столбце.") from exc
-    if not isinstance(raw, dict):
-        raise ConfigError("Корень конфигурации должен быть словарём")
-    raw = _substitute_env(raw)
+def load_config(env_file: str | os.PathLike[str] | None = None) -> AppConfig:
+    """Читает .env (если существует) и переменные окружения; реальные переменные приоритетнее файла."""
+    path = env_file or os.environ.get("ENV_PATH", ".env")
+    values: dict[str, str] = {**_read_env_file(path), **os.environ}
+    env = _Env(values)
     return AppConfig(
-        frigate=_parse_frigate(raw.get("frigate") or {}),
-        telegram=_parse_telegram(raw.get("telegram") or {}),
-        alerts=_parse_alerts(raw.get("alerts") or {}),
-        groups=_parse_groups(raw.get("groups") or {}),
-        logging=_parse_logging(raw.get("logging") or {}, raw.get("log_level")),
-        routes=_parse_routes(raw.get("routes") or []),
+        frigate=_parse_frigate(env),
+        telegram=_parse_telegram(env),
+        alerts=_parse_alerts(env),
+        groups=_parse_groups(env),
+        logging=_parse_logging(env),
+        routes=_parse_routes(env),
     )

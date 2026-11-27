@@ -14,19 +14,19 @@ from .logging_setup import setup_logging
 from .router import Router
 from .telegram import TelegramBot
 
-DEFAULT_CONFIG = os.environ.get("CONFIG_PATH", "config/config.yaml")
+DEFAULT_ENV = os.environ.get("ENV_PATH", ".env")
 
 
 async def main() -> int:
     log = logging.getLogger("frigate-to-tg")
     try:
-        cfg: AppConfig = load_config(DEFAULT_CONFIG)
+        cfg: AppConfig = load_config(DEFAULT_ENV)
     except ConfigError as exc:
         setup_logging(LoggingConfig())
         log.error("Ошибка конфигурации: %s", exc)
         return 2
     setup_logging(cfg.logging)
-    log.info("Конфигурация загружена: %s (log_level=%s)", DEFAULT_CONFIG, cfg.logging.level)
+    log.info("Конфигурация загружена: %s (log_level=%s)", DEFAULT_ENV, cfg.logging.level)
 
     frigate = FrigateClient(cfg.frigate)
     tg = TelegramBot(cfg.telegram)

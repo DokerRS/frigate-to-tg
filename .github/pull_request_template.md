@@ -10,5 +10,5 @@ PR открывается в ветку `dev`, не в `main` (в main попа�
 ## Как проверено
 
 - [ ] `python -m pytest -q`
-- [ ] Конфиг загружается: `python -c "from app.config import load_config; load_config('config/config.example.yaml')"`
+- [ ] Конфиг загружается: `TELEGRAM_BOT_TOKEN=x ROUTE_1_CHAT_ID=-1 python -c "from app.config import load_config; load_config('.env.example')"`
 - [ ] Для изменений docker/конфига: `docker compose up -d --build` и бот стартует (логи чистые)

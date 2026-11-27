@@ -16,7 +16,7 @@ RUN pip install -r requirements.txt
 COPY app ./app
 
 USER nobody
-ENV CONFIG_PATH=/app/config/config.yaml
+ENV ENV_PATH=/app/.env
 
 LABEL org.opencontainers.image.title="frigate-to-tg" \
       org.opencontainers.image.description="Frigate alerts to Telegram topics via HTTP API" \

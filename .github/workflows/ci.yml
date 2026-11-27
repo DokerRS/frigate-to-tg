@@ -37,8 +37,8 @@ jobs:
       - name: Pytest
         run: python -m pytest -q
 
-      - name: Config example loads
-        run: python -c "from app.config import load_config; load_config('config/config.example.yaml'); print('config ok')"
+      - name: Example env parses
+        run: TELEGRAM_BOT_TOKEN=x ROUTE_1_CHAT_ID=-1 python -c "from app.config import load_config; load_config('.env.example'); print('env example ok')"
 
   docker-smoke:
     name: Docker build & boot
@@ -67,25 +67,22 @@ jobs:
       # (битые импорты, разбор конфига). Без конфига приложение должно выйти с кодом 2
       # (ошибка конфигурации), а не с traceback импорта.
       - name: Imports OK
-        run: docker run --rm frigate-to-tg:ci python -c "import app.main, app.bot, app.config, app.router, app.frigate_client, app.telegram; print('imports ok')"
+        run: docker run --rm --entrypoint python frigate-to-tg:ci -c "import app.main, app.bot, app.config, app.router, app.frigate_client, app.telegram; print('imports ok')"
 
       - name: Fails cleanly without config
         run: |
-          code=$(docker run --rm frigate-to-tg:ci; echo $?)
+          code=0
+          docker run --rm frigate-to-tg:ci >/dev/null 2>&1 || code=$?
           echo "exit code: $code"
           test "$code" = "2"
 
       - name: Boots with a config (Telegram unreachable is fine)
         run: |
-          cat > /tmp/config.yaml <<'EOF'
-          telegram:
-            bot_token: "123:TEST"
-          frigate:
-            url: http://127.0.0.1:5000
-          routes:
-            - chat_id: -1001
-          EOF
-          docker run -d --name app -v /tmp/config.yaml:/app/config/config.yaml:ro frigate-to-tg:ci
+          docker run -d --name app \
+            -e TELEGRAM_BOT_TOKEN=123:TEST \
+            -e FRIGATE_URL=http://127.0.0.1:5000 \
+            -e ROUTE_1_CHAT_ID=-1001 \
+            frigate-to-tg:ci
           sleep 5
           # Живой процесс = конфиг разобран и приложение дошло до подключения к Telegram.
           # Без сети до api.telegram.org оно упадёт по таймауту — это ок, важна сама загрузка.
