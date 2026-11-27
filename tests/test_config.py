@@ -34,15 +34,16 @@ def test_env_default_and_proxy(tmp_path, monkeypatch):
 telegram:
   bot_token: ${TELEGRAM_BOT_TOKEN}
   proxy_url: ${TELEGRAM_PROXY_URL:-}
-mqtt:
-  host: ${MQTT_HOST:-mqtt}
+frigate:
+  url: http://frigate:5000
+  poll_interval: ${POLL_INTERVAL:-5}
 routes:
   - chat_id: -1
     thread_id: ${TG_TOPIC:-0}
 """)
     cfg = load_config(p)
     assert cfg.telegram.proxy_url == "http://proxy:3128"
-    assert cfg.mqtt.host == "mqtt"
+    assert cfg.frigate.poll_interval == 5.0
     assert cfg.routes[0].thread_id is None  # 0 трактуется как "без топика"
 
 

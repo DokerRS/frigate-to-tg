@@ -11,7 +11,6 @@ from .bot import AlertBot
 from .config import AppConfig, ConfigError, LoggingConfig, load_config
 from .frigate_client import FrigateClient
 from .logging_setup import setup_logging
-from .mqtt_client import MqttListener
 from .router import Router
 from .telegram import TelegramBot
 
@@ -41,12 +40,9 @@ async def main() -> int:
         except NotImplementedError:  # Windows
             pass
 
-    mqtt_listener = MqttListener(cfg.mqtt, bot.handle_mqtt_event, loop)
-    mqtt_listener.start()
     try:
         await bot.run()
     finally:
-        mqtt_listener.stop()
         await frigate.close()
         await tg.close()
     log.info("Остановлен.")

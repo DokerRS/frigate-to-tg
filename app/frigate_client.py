@@ -45,6 +45,26 @@ class FrigateClient:
         groups = resp.json().get("camera_groups") or {}
         return {str(name): [str(c) for c in (g.get("cameras") or [])] for name, g in groups.items()}
 
+    async def get_events(self, after: float, limit: int = 100) -> list[dict]:
+        """События, начатые после `after` (unix ts), по возрастанию времени."""
+        params = {
+            "after": f"{after:.3f}",
+            "sort": "date_asc",
+            "limit": limit,
+            "include_thumbnails": 0,
+        }
+        try:
+            resp = await self._client.get("/api/events", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPError as exc:
+            raise FrigateError(f"Не удалось получить события из Frigate: {exc}") from exc
+        except ValueError as exc:
+            raise FrigateError(f"Frigate вернул не-JSON для /api/events: {exc}") from exc
+        if not isinstance(data, list):
+            raise FrigateError(f"Frigate вернул неожиданный ответ для /api/events: {type(data).__name__}")
+        return data
+
     async def get_snapshot(self, event_id: str) -> bytes:
         url = f"/api/events/{event_id}/snapshot.jpg"
         try:

@@ -41,12 +41,16 @@ class AlertBot:
         me = await self.tg.get_me()
         log.info("Подключён бот @%s (id=%s)", me.get("username"), me.get("id"))
         await self.refresh_groups()
-        task = asyncio.create_task(self._poll_loop(), name="telegram-polling")
+        tasks = [
+            asyncio.create_task(self._poll_loop(), name="telegram-polling"),
+            asyncio.create_task(self._events_loop(), name="frigate-polling"),
+        ]
         try:
             await self._stop.wait()
         finally:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def refresh_groups(self) -> None:
         if not self.cfg.groups.from_frigate:
@@ -60,21 +64,51 @@ class AlertBot:
             self.router.set_frigate_groups(groups)
             log.info("Группы камер из Frigate: %s", {k: v for k, v in groups.items()})
 
-    # ---------------- MQTT events ----------------
+    # ---------------- Frigate API polling ----------------
 
-    async def handle_mqtt_event(self, payload: dict) -> None:
-        event = parse_event(payload)
-        if event is None:
-            log.debug("MQTT: сообщение не распознано как событие Frigate")
+    async def _events_loop(self) -> None:
+        """Периодически опрашивает /api/events и отправляет новые события."""
+        interval = max(1.0, self.cfg.frigate.poll_interval)
+        lookback = max(0, self.cfg.frigate.lookback)
+        log.info("Опрос Frigate API: каждые %.0fс, окно %dс", interval, lookback)
+        while not self._stop.is_set():
+            try:
+                await self.poll_events(lookback)
+            except FrigateError as exc:
+                log.warning("Frigate API недоступен: %s (повтор через %.0fс)", exc, interval)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - polling loop must survive
+                log.exception("Ошибка опроса событий Frigate")
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                pass
+
+    async def poll_events(self, lookback: int) -> None:
+        """Одно обращение к API: все события, начатые в пределах окна `lookback` секунд."""
+        after = time.time() - lookback
+        rows = await self.frigate.get_events(after=after)
+        if not rows:
             return
+        events = [e for e in (parse_event(row) for row in rows) if e is not None]
+        # новые — первые; но на случай непредсказуемой сортировки сортируем сами
+        events.sort(key=lambda e: e.start_time or 0.0)
+        fresh = [e for e in events if e.event_id not in self._sent_events]
+        if fresh:
+            log.debug("Frigate API: %d событий в окне, новых %d", len(events), len(fresh))
+        for event in fresh:
+            try:
+                await self.handle_event(event)
+            except Exception:  # noqa: BLE001 - one bad event must not stop the rest
+                log.exception("Ошибка обработки события %s", event.event_id)
+
+    async def handle_event(self, event: EventInfo) -> None:
         log.debug(
-            "MQTT событие %s: camera=%s label=%s score=%.2f action=%s snapshot=%s clip=%s",
-            event.event_id, event.camera, event.label, event.score, event.action,
+            "Событие %s: camera=%s label=%s score=%.2f snapshot=%s clip=%s",
+            event.event_id, event.camera, event.label, event.score,
             event.has_snapshot, event.has_clip,
         )
-        if event.action not in self.cfg.alerts.actions:
-            log.debug("Событие %s: действие '%s' не в alerts.actions", event.event_id, event.action)
-            return
         if self.cfg.alerts.require_snapshot and not event.has_snapshot:
             log.debug("Событие %s: снапшота нет, пропускаю", event.event_id)
             return

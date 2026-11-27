@@ -14,12 +14,12 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # Если Frigate/MQTT работают в своей docker-сети и доступны по именам контейнеров —
+    # Если Frigate работает в своей docker-сети и доступен по имени контейнера —
     # подключите контейнер к этой сети (имя посмотрите через `docker network ls`):
     # networks:
     #   - frigate
     # Иначе оставьте как есть (compose создаст свою сеть) и укажите в config.yaml
-    # прямые адреса, например frigate.url: http://192.168.1.10:5000, mqtt.host: 192.168.1.10
+    # прямой адрес, например frigate.url: http://192.168.1.10:5000
 
 # networks:
 #   frigate:

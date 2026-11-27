@@ -1,12 +1,12 @@
 # frigate-to-tg
 
-Бот, который получает алерты Frigate по MQTT и отправляет фото события в нужный чат/топик
-Telegram. Видео — по запросу (кнопка «🎬 Видео» под фото). Группы камер Frigate можно
+Бот, который следит за алертами Frigate через его HTTP API и отправляет фото события в нужный
+чат/топик Telegram. Видео — по запросу (кнопка «🎬 Видео» под фото). Группы камер Frigate можно
 назначить конкретным топикам. Telegram доступен через HTTP-прокси.
 
 ## Возможности
 
-- Подписка на MQTT-топик `frigate/events` (Frigate 0.14+).
+- Опрос Frigate API `GET /api/events` (Frigate 0.14+) — MQTT не нужен.
 - Фото события (snapshot, при отсутствии — thumbnail) с компактной подписью в две строки:
   `🚗 Car — balkon · zone` и `80% · 🕒 26.11.2025 20:13`. Отключается `alerts.caption_card: false`
   (тогда используется простой `caption_format`).
@@ -29,7 +29,7 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    cp config/config.example.yaml config/config.yaml
    ```
    `config/config.yaml` не попадает в git (`.gitignore`), поэтому токен и пароли пишете прямо в него.
-3. Заполните `config/config.yaml`: токен бота, адреса Frigate/MQTT, прокси Telegram, маршруты
+3. Заполните `config/config.yaml`: токен бота, адрес Frigate, прокси Telegram, маршруты
    (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
 4. Запуск:
    ```bash
@@ -38,9 +38,9 @@ Telegram. Видео — по запросу (кнопка «🎬 Видео» �
    ```
 
 Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `config.yaml`
-укажите прямые адреса Frigate/MQTT (например `http://192.168.1.10:5000`). Если Frigate/MQTT
-доступны по именам контейнеров — раскомментируйте блок `networks` в compose и подключите
-контейнер к их сети (`docker network ls`).
+укажите прямой адрес Frigate (например `http://192.168.1.10:5000`). Если Frigate доступен
+по имени контейнера — раскомментируйте блок `networks` в compose и подключите
+контейнер к его сети (`docker network ls`).
 Блок `logging` в compose ограничивает размер логов контейнера (json-file, 10 МБ × 3 файла).
 
 ## Конфигурация
@@ -59,11 +59,8 @@ frigate:
   # public_url: http://192.168.1.10:5000  # внешний адрес для кнопки «Открыть в Frigate»
   # auth: { user: ..., password: ... }   # basic auth
   # auth: { token: ... }                 # или токен Frigate
-
-mqtt:
-  host: mqtt
-  port: 1883
-  prefix: frigate           # события приходят в <prefix>/events
+  poll_interval: 3            # как часто (сек) опрашивать /api/events
+  lookback: 60                # за сколько секунд назад смотреть события при опросе
 
 telegram:
   bot_token: "123456:ABC-DEF..."
@@ -92,7 +89,7 @@ routes:
 
 Маршрут без `groups` и `cameras` — «все камеры». Если группа не найдена, бот предупредит в логе
 (проверьте, что `groups.from_frigate: true` и имя группы совпадает с `camera_groups` в Frigate;
-в MQTT используются внутренние id камер, а не `friendly_name`).
+в API используются внутренние id камер, а не `friendly_name`).
 
 Команды бота: `/chatid` (id чата и топика), `/groups` (известные группы камер),
 `/refresh` (перечитать группы из Frigate), `/debug [DEBUG|INFO|WARNING|ERROR]` (сменить
@@ -101,8 +98,8 @@ routes:
 ## Логи
 
 Основной лог — stdout контейнера (`docker compose logs -f`). Настройки — в секции `logging`
-конфига: уровень, файл, отладка HTTP. При `level: DEBUG` в лог пишется каждое полученное
-MQTT-событие (camera/label/score/topik) и причины пропуска алертов. Менять уровень можно
+конфига: уровень, файл, отладка HTTP. При `level: DEBUG` в лог пишется каждое новое
+событие Frigate (camera/label/score) и причины пропуска алертов. Менять уровень можно
 без перезапуска: `/debug DEBUG`.
 
 ## Разработка

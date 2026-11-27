@@ -58,21 +58,8 @@ class FrigateConfig:
     token: str | None = None
     snapshot_quality: int = 80
     timeout: float = 30.0
-
-
-@dataclass
-class MqttConfig:
-    host: str = "mqtt"
-    port: int = 1883
-    username: str | None = None
-    password: str | None = None
-    prefix: str = "frigate"
-    client_id: str = "frigate-to-tg"
-    tls: bool = False
-
-    @property
-    def events_topic(self) -> str:
-        return f"{self.prefix.strip('/')}/events"
+    poll_interval: float = 3.0   # как часто опрашивать /api/events
+    lookback: int = 60           # за сколько секунд назад смотреть события при каждом опросе
 
 
 @dataclass
@@ -86,7 +73,6 @@ class TelegramConfig:
 
 @dataclass
 class AlertsConfig:
-    actions: tuple[str, ...] = ("update",)
     one_alert_per_event: bool = True
     require_snapshot: bool = True
     min_score: float = 0.0
@@ -136,7 +122,6 @@ class Route:
 @dataclass
 class AppConfig:
     frigate: FrigateConfig
-    mqtt: MqttConfig
     telegram: TelegramConfig
     alerts: AlertsConfig
     groups: GroupsConfig
@@ -167,18 +152,8 @@ def _parse_frigate(raw: dict) -> FrigateConfig:
         token=auth.get("token") or raw.get("token") or None,
         snapshot_quality=_as_int(raw.get("snapshot_quality", 80), "frigate.snapshot_quality"),
         timeout=_as_float(raw.get("timeout", 30), "frigate.timeout"),
-    )
-
-
-def _parse_mqtt(raw: dict) -> MqttConfig:
-    return MqttConfig(
-        host=str(raw.get("host", "mqtt")),
-        port=_as_int(raw.get("port", 1883), "mqtt.port"),
-        username=raw.get("username") or None,
-        password=raw.get("password") or None,
-        prefix=str(raw.get("prefix", raw.get("topic", "frigate")).removesuffix("/events").strip("/") or "frigate"),
-        client_id=str(raw.get("client_id", "frigate-to-tg")),
-        tls=bool(raw.get("tls", False)),
+        poll_interval=_as_float(raw.get("poll_interval", 3.0), "frigate.poll_interval"),
+        lookback=_as_int(raw.get("lookback", 60), "frigate.lookback"),
     )
 
 
@@ -196,15 +171,7 @@ def _parse_telegram(raw: dict) -> TelegramConfig:
 
 
 def _parse_alerts(raw: dict) -> AlertsConfig:
-    actions = raw.get("actions", ["update"])
-    if isinstance(actions, str):
-        actions = [actions]
-    actions = tuple(str(a).strip().lower() for a in actions)
-    unknown = set(actions) - {"new", "update", "end", "unknown"}
-    if unknown:
-        raise ConfigError(f"alerts.actions: неизвестные действия {sorted(unknown)}")
     return AlertsConfig(
-        actions=actions,
         one_alert_per_event=bool(raw.get("one_alert_per_event", True)),
         require_snapshot=bool(raw.get("require_snapshot", True)),
         min_score=_as_float(raw.get("min_score", 0.0), "alerts.min_score"),
@@ -278,7 +245,6 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     raw = _substitute_env(raw)
     return AppConfig(
         frigate=_parse_frigate(raw.get("frigate") or {}),
-        mqtt=_parse_mqtt(raw.get("mqtt") or {}),
         telegram=_parse_telegram(raw.get("telegram") or {}),
         alerts=_parse_alerts(raw.get("alerts") or {}),
         groups=_parse_groups(raw.get("groups") or {}),

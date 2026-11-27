@@ -1,11 +1,10 @@
-from app.config import AlertsConfig, AppConfig, FrigateConfig, GroupsConfig, MqttConfig, Route, TelegramConfig
+from app.config import AlertsConfig, AppConfig, FrigateConfig, GroupsConfig, Route, TelegramConfig
 from app.router import Router, parse_event
 
 
 def make_cfg(routes, groups_extra=None, min_score=0.0):
     return AppConfig(
         frigate=FrigateConfig(),
-        mqtt=MqttConfig(),
         telegram=TelegramConfig(bot_token="t"),
         alerts=AlertsConfig(min_score=min_score),
         groups=GroupsConfig(from_frigate=False, extra=groups_extra or {}),
@@ -14,18 +13,15 @@ def make_cfg(routes, groups_extra=None, min_score=0.0):
 
 
 EVENT = {
-    "type": "update",
-    "after": {
-        "id": "123.4-abc",
-        "camera": "front_door",
-        "label": "Person",
-        "top_score": 0.9,
-        "has_snapshot": True,
-        "has_clip": True,
-        "entered_zones": ["driveway"],
-        "start_time": 1.0,
-        "snapshot": {"frame_time": 1.0},
-    },
+    "id": "123.4-abc",
+    "camera": "front_door",
+    "label": "Person",
+    "top_score": 0.9,
+    "has_snapshot": True,
+    "has_clip": True,
+    "zones": ["driveway"],
+    "start_time": 1.0,
+    "data": {"score": 0.9},
 }
 
 
@@ -35,27 +31,26 @@ def test_parse_event():
     assert ev.camera == "front_door"
     assert ev.label == "person"
     assert ev.score == 0.9
+    assert ev.zones == ("driveway",)
     assert ev.has_snapshot and ev.has_clip
-    assert ev.action == "update"
 
 
 def test_parse_event_rejects_garbage():
     assert parse_event({}) is None
-    assert parse_event({"type": "new"}) is None
+    assert parse_event({"camera": "front_door"}) is None
 
 
 def test_group_route_matches_only_group_cameras():
     cfg = make_cfg([Route(chat_id=-1, thread_id=42, groups=["front"])], groups_extra={"front": ["front_door"]})
     router = Router(cfg)
     assert router.match(parse_event(EVENT)) == [cfg.routes[0]]
-    other = dict(EVENT["after"], camera="back_yard")
-    assert router.match(parse_event(dict(EVENT, after=other))) == []
+    assert router.match(parse_event(dict(EVENT, camera="back_yard"))) == []
 
 
 def test_frigate_groups_used():
     cfg = make_cfg([Route(chat_id=-1, groups=["yard"])])
     router = Router(cfg, frigate_groups={"yard": ["back_yard"]})
-    ev = parse_event(dict(EVENT, after=dict(EVENT["after"], camera="back_yard")))
+    ev = parse_event(dict(EVENT, camera="back_yard"))
     assert len(router.match(ev)) == 1
 
 
@@ -100,7 +95,7 @@ def test_card_html():
 
 
 def test_card_html_escapes_and_unknown_label():
-    ev = parse_event(dict(EVENT, after=dict(EVENT["after"], label="<b>x", camera="a&b")))
+    ev = parse_event(dict(EVENT, label="<b>x", camera="a&b"))
     card = ev.card_html()
     assert "&lt;b&gt;" in card
     assert "⚠️" in card

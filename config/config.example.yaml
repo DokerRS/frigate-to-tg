@@ -19,14 +19,8 @@ frigate:
   # auth:
   #   token: <frigate api token>
   snapshot_quality: 80
-
-mqtt:
-  host: mqtt
-  port: 1883
-  # username: admin
-  # password: secret
-  prefix: frigate             # MQTT-префикс Frigate; события приходят в <prefix>/events
-  tls: false
+  poll_interval: 3          # как часто (сек) опрашивать Frigate API на новые события
+  lookback: 60              # за сколько секунд назад смотреть события при опросе
 
 telegram:
   bot_token: "123456:ABC-DEF..."
@@ -35,8 +29,6 @@ telegram:
   proxy_url: ""
 
 alerts:
-  # какие MQTT-действия отправлять: new, update, end
-  actions: [update]
   one_alert_per_event: true   # одно событие = одно сообщение
   require_snapshot: true
   min_score: 0.7

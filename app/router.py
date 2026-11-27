@@ -51,13 +51,12 @@ def score_bar(score: float, blocks: int = 5) -> str:
 
 @dataclass(frozen=True)
 class EventInfo:
-    """Извлечённые из MQTT-сообщения данные события."""
+    """Данные события из Frigate API (/api/events)."""
 
     event_id: str
     camera: str
     label: str
     score: float
-    action: str  # new | update | end
     has_snapshot: bool
     has_clip: bool
     zones: tuple[str, ...] = ()
@@ -102,30 +101,30 @@ class EventInfo:
         return dt.strftime("%d.%m.%Y %H:%M:%S")
 
 
-def parse_event(payload: dict) -> EventInfo | None:
-    """Разбирает сообщение frigate/events. Берётся часть 'after' — она актуальнее."""
-    after = payload.get("after")
-    if not isinstance(after, dict) or not after.get("id"):
+def parse_event(raw: dict) -> EventInfo | None:
+    """Разбирает запись из Frigate API `/api/events`."""
+    if not isinstance(raw, dict) or not raw.get("id"):
         return None
-    action = str(payload.get("type", "update")).lower()
-    snapshot = after.get("snapshot") or {}
-    score = after.get("top_score") or after.get("score") or snapshot.get("score") or 0.0
-    sub_label = after.get("sub_label")
+    data = raw.get("data") or {}
+    if not isinstance(data, dict):
+        data = {}
+    score = raw.get("top_score") or raw.get("score") or data.get("score") or 0.0
+    sub_label = raw.get("sub_label")
     if isinstance(sub_label, list) and sub_label:
         sub_label = str(sub_label[0])
-    elif not isinstance(sub_label, str):
+    elif not isinstance(sub_label, str) or not sub_label:
         sub_label = None
-    zones = tuple(str(z) for z in (after.get("entered_zones") or after.get("current_zones") or []))
+    zones = tuple(str(z) for z in (raw.get("zones") or []))
+    start_time = raw.get("start_time")
     return EventInfo(
-        event_id=str(after["id"]),
-        camera=str(after.get("camera", "")),
-        label=str(after.get("label", "object")).lower(),
+        event_id=str(raw["id"]),
+        camera=str(raw.get("camera", "")),
+        label=str(raw.get("label", "object")).lower(),
         score=float(score or 0.0),
-        action=action if action in ("new", "update", "end") else "update",
-        has_snapshot=bool(after.get("has_snapshot")) or bool(snapshot.get("frame_time")),
-        has_clip=bool(after.get("has_clip")),
+        has_snapshot=bool(raw.get("has_snapshot")),
+        has_clip=bool(raw.get("has_clip")),
         zones=zones,
-        start_time=after.get("start_time"),
+        start_time=float(start_time) if start_time is not None else None,
         sub_label=sub_label,
     )
 
