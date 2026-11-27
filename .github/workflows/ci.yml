@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Pytest
+        run: python -m pytest -q
+
+      - name: Config example loads
+        run: python -c "from app.config import load_config; load_config('config/config.example.yaml'); print('config ok')"
+
+  docker-smoke:
+    name: Docker build & boot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: frigate-to-tg:ci
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: |
+            type=gha,scope=ci-amd64
+            type=gha,scope=amd64
+          cache-to: type=gha,mode=max,scope=ci-amd64
+
+      # Проверка известной болевой точки: образ собирается, но приложение падает на старте
+      # (битые импорты, разбор конфига). Без конфига приложение должно выйти с кодом 2
+      # (ошибка конфигурации), а не с traceback импорта.
+      - name: Imports OK
+        run: docker run --rm frigate-to-tg:ci python -c "import app.main, app.bot, app.config, app.router, app.frigate_client, app.telegram; print('imports ok')"
+
+      - name: Fails cleanly without config
+        run: |
+          code=$(docker run --rm frigate-to-tg:ci; echo $?)
+          echo "exit code: $code"
+          test "$code" = "2"
+
+      - name: Boots with a config (Telegram unreachable is fine)
+        run: |
+          cat > /tmp/config.yaml <<'EOF'
+          telegram:
+            bot_token: "123:TEST"
+          frigate:
+            url: http://127.0.0.1:5000
+          routes:
+            - chat_id: -1001
+          EOF
+          docker run -d --name app -v /tmp/config.yaml:/app/config/config.yaml:ro frigate-to-tg:ci
+          sleep 5
+          # Живой процесс = конфиг разобран и приложение дошло до подключения к Telegram.
+          # Без сети до api.telegram.org оно упадёт по таймауту — это ок, важна сама загрузка.
+          if [ "$(docker inspect -f '{{.State.Running}}' app)" = "true" ]; then
+            echo "container running"
+          else
+            docker logs app
+            grep -q "Конфигурация загружена" <(docker logs app 2>&1)
+          fi
+          docker rm -f app || true

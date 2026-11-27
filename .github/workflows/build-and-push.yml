@@ -1,0 +1,95 @@
+name: Build&Push Release Docker Image
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  send-tg-msg:
+    name: Send TG message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        uses: proDreams/actions-telegram-notifier@v3.0.0
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: info
+          notify_fields: 'repository,branch,commit,workflow'
+          title: 'Build started.'
+
+  image:
+    name: Image
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      tags: latest ${{ github.ref_name }}
+    secrets: inherit
+
+  create-release:
+    name: Create release
+    needs: [image]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Registry repository names must be lowercase, but github.repository keeps the owner's casing.
+      - name: Resolve image names
+        id: images
+        run: |
+          echo "ghcr=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY")" >> "$GITHUB_OUTPUT"
+          echo "dockerhub=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "${DOCKERHUB_NAME:-$GITHUB_REPOSITORY}")" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+          body: |
+            Docker image:
+            - `${{ steps.images.outputs.ghcr }}:${{ github.ref_name }}`
+            - `${{ steps.images.outputs.ghcr }}:latest`
+            - `${{ steps.images.outputs.dockerhub }}:${{ github.ref_name }}`
+            - `${{ steps.images.outputs.dockerhub }}:latest`
+
+  send-finish-tg-msg:
+    name: Send TG message
+    needs: [image, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        uses: proDreams/actions-telegram-notifier@v3.0.0
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: ${{ job.status }}
+          notify_fields: 'repository,branch,commit'
+          title: 'Build finished.'
+
+  notify-on-error:
+    name: Notify on error
+    needs: [image]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send error notification
+        uses: proDreams/actions-telegram-notifier@v3.0.0
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: failure
+          notify_fields: 'repository,branch,commit,workflow'
+          title: 'Build failed.'

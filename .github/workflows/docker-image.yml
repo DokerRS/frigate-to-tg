@@ -1,0 +1,175 @@
+name: Docker image
+
+# Собирает multi-arch образ (нативные amd64 + arm64 раннеры, пуш по digest, затем слияние в один
+# manifest list) и публикует в GHCR и Docker Hub под переданными тегами. Вызывается из релизного
+# и dev workflow, чтобы обе сборки были идентичными.
+#
+# Для Docker Hub нужен секрет DOCKERHUB_TOKEN (access token с правами read & write). Пользователь
+# по умолчанию — владелец репозитория GitHub, репозиторий — тот же (owner/name); задайте секрет
+# DOCKERHUB_USERNAME или переменную DOCKERHUB_IMAGE, если имена на Docker Hub другие.
+
+on:
+  workflow_call:
+    inputs:
+      tags:
+        description: Теги для публикации через пробел (например "latest 0.48.0")
+        required: true
+        type: string
+      version-suffix:
+        description: Добавляется к версии в метаданных образа (например "-dev")
+        required: false
+        type: string
+        default: ''
+
+env:
+  # GHCR читает описание multi-arch образа из аннотаций индекса, а не из label.
+  # Держите в синхроне с LABEL в Dockerfile.
+  IMAGE_DESCRIPTION: >-
+    Frigate alerts to Telegram topics: photos, video on demand, camera group routing (HTTP API)
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve image names
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY")" >> "$GITHUB_ENV"
+          echo "DOCKERHUB_IMAGE=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "${DOCKERHUB_NAME:-$GITHUB_REPOSITORY}")" >> "$GITHUB_ENV"
+        env:
+          DOCKERHUB_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Prepare build metadata
+        id: meta
+        # Версия = первый из тегов (например "latest 0.48.0" -> "latest", "0.48.0" -> "0.48.0").
+        # В Docker Hub пушим только если задан секрет DOCKERHUB_TOKEN.
+        run: |
+          tags="${{ inputs.tags }}"
+          echo "version=${tags%% *}${{ inputs.version-suffix }}" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          if [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "targets=${GHCR_IMAGE},${DOCKERHUB_IMAGE}" >> "$GITHUB_OUTPUT"
+          else
+            echo "targets=${GHCR_IMAGE}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Одна сборка, пуш по digest в реестры; job merge тегирует её в каждом реестре.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            BUILD_TIME=${{ steps.meta.outputs.build_time }}
+            GIT_COMMIT=${{ github.sha }}
+          outputs: type=image,"name=${{ steps.meta.outputs.targets }}",push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+      - name: Export digest
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge & push manifests
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve image names
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY")" >> "$GITHUB_ENV"
+          echo "DOCKERHUB_IMAGE=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "${DOCKERHUB_NAME:-$GITHUB_REPOSITORY}")" >> "$GITHUB_ENV"
+        env:
+          DOCKERHUB_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME || github.repository_owner }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create & push manifest lists
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          TAGS: ${{ inputs.tags }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          images="$GHCR_IMAGE"
+          [ -n "$DOCKERHUB_TOKEN" ] && images="$images $DOCKERHUB_IMAGE"
+          for image in $images; do
+            args=()
+            for tag in $TAGS; do args+=(-t "$image:$tag"); done
+            for digest in *; do args+=("$image@sha256:$digest"); done
+            docker buildx imagetools create \
+              --annotation "index:org.opencontainers.image.description=$IMAGE_DESCRIPTION" \
+              "${args[@]}"
+          done
+
+      - name: Inspect images
+        env:
+          TAGS: ${{ inputs.tags }}
+        run: |
+          tag="${TAGS%% *}"
+          docker buildx imagetools inspect "$GHCR_IMAGE:$tag"
