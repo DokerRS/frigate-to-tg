@@ -20,6 +20,11 @@ on:
         required: false
         type: string
         default: ''
+      version:
+        description: Версия для метаданных образа. Пусто = первый тег из `tags`.
+        required: false
+        type: string
+        default: ''
 
 env:
   # GHCR читает описание multi-arch образа из аннотаций индекса, а не из label.
@@ -75,11 +80,13 @@ jobs:
 
       - name: Prepare build metadata
         id: meta
-        # Версия = первый из тегов (например "latest 0.48.0" -> "latest", "0.48.0" -> "0.48.0").
+        # Версия берётся из входа `version`, либо = первый из тегов
+        # (например "latest 0.48.0" -> "latest", "0.48.0" -> "0.48.0").
         # В Docker Hub пушим только если задан секрет DOCKERHUB_TOKEN.
         run: |
-          tags="${{ inputs.tags }}"
-          echo "version=${tags%% *}${{ inputs.version-suffix }}" >> "$GITHUB_OUTPUT"
+          version="${{ inputs.version }}"
+          [ -z "$version" ] && version="${{ inputs.tags }}" && version="${version%% *}"
+          echo "version=${version}${{ inputs.version-suffix }}" >> "$GITHUB_OUTPUT"
           echo "build_time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           if [ -n "$DOCKERHUB_TOKEN" ]; then
             echo "targets=${GHCR_IMAGE},${DOCKERHUB_IMAGE}" >> "$GITHUB_OUTPUT"

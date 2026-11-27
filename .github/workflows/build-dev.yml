@@ -1,7 +1,8 @@
 name: Build&Push Dev Docker Image
 
-# Каждый пуш в `dev` публикует тот же multi-arch образ, что и релиз, под тегом `dev`
-# (GHCR и Docker Hub). В метаданных сборки версия с суффиксом "-dev".
+# Каждый пуш в `dev` публикует multi-arch образ в GHCR и Docker Hub под тегами `dev` и
+# `<версия>-dev.<sha>` (версия берётся из последнего тега релиза). В метаданных образа
+# версия совпадает с тегом `<версия>-dev.<sha>`.
 
 on:
   push:
@@ -19,17 +20,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  meta:
+    name: Resolve dev version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute dev version
+        id: version
+        run: |
+          base=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
+          base="${base#v}"
+          echo "version=${base}-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  send-tg-msg:
+    name: Send TG message
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        uses: proDreams/actions-telegram-notifier@v3.0.0
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: info
+          notify_fields: 'repository,branch,commit,workflow'
+          title: 'Dev build started.'
+
   image:
     name: Image
+    needs: [meta]
     uses: ./.github/workflows/docker-image.yml
     with:
-      tags: dev
-      version-suffix: -dev
+      tags: dev ${{ needs.meta.outputs.version }}
+      version: ${{ needs.meta.outputs.version }}
     secrets: inherit
+
+  send-finish-tg-msg:
+    name: Send TG message
+    needs: [meta, image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram message
+        uses: proDreams/actions-telegram-notifier@v3.0.0
+        with:
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          status: ${{ job.status }}
+          notify_fields: 'repository,branch,commit'
+          title: 'Dev build finished: ${{ needs.meta.outputs.version }}'
 
   notify-on-error:
     name: Notify on error
-    needs: [image]
+    needs: [meta, image]
     if: failure()
     runs-on: ubuntu-latest
     steps:
