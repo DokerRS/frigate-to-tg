@@ -31,9 +31,21 @@
    `config/config.yaml` не попадает в git (`.gitignore`), поэтому токен и пароли пишете прямо в него.
 3. Заполните `config/config.yaml`: токен бота, адрес Frigate, прокси Telegram, маршруты
    (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
-4. Запуск:
+4. Запуск. Есть два варианта:
+
+   **Вариант A — из готового образа из Docker Hub (рекомендуется, не нужен исходник и сборка):**
    ```bash
-   docker compose up -d
+   docker compose -f docker-compose-prod.yml pull
+   docker compose -f docker-compose-prod.yml up -d
+   docker compose -f docker-compose-prod.yml logs -f
+   ```
+   Обновление — те же `pull` + `up -d` (или конкретная версия: `image: docker.io/dokerrs/frigate-to-tg:0.1.0`
+   в `docker-compose-prod.yml`). CI публикует образы в `docker.io/dokerrs/frigate-to-tg` и
+   `ghcr.io/dokerrs/frigate-to-tg` (теги `latest` и номер релиза; `dev` — сборки из ветки dev).
+
+   **Вариант B — сборка из исходников локально:**
+   ```bash
+   docker compose up -d --build
    docker compose logs -f
    ```
 
@@ -101,6 +113,17 @@ routes:
 конфига: уровень, файл, отладка HTTP. При `level: DEBUG` в лог пишется каждое новое
 событие Frigate (camera/label/score) и причины пропуска алертов. Менять уровень можно
 без перезапуска: `/debug DEBUG`.
+
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`) — на PR и пуш в `main`/`dev`: pytest + smoke-сборка образа.
+- **Релиз** — пуш тега (например `v0.1.0`) собирает multi-arch образ (amd64/arm64), публикует
+  `latest` и тег в GHCR и Docker Hub, создаёт GitHub Release.
+- **Dev-образ** — пуш в `dev` публикует тег `dev`.
+
+Секреты в Settings → Secrets and variables → Actions: `TELEGRAM_TOKEN` + `TELEGRAM_CHAT_ID`
+(уведомления о сборках), `DOCKERHUB_TOKEN` (опционально — без него пуш только в GHCR).
+GHCR работает через встроенный `GITHUB_TOKEN`.
 
 ## Разработка
 

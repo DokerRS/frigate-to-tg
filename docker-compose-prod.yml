@@ -1,0 +1,39 @@
+# Продакшн-вариант: образ не собирается на хосте, а скачивается из реестра.
+#
+#   docker compose -f docker-compose-prod.yml pull
+#   docker compose -f docker-compose-prod.yml up -d
+#
+# Обновление до последней версии — повторный `pull` + `up -d`.
+services:
+  frigate-to-tg:
+    # Публикация из CI (workflow Build&Push Release Docker Image).
+    # Docker Hub (по умолчанию):
+    image: docker.io/dokerrs/frigate-to-tg:latest
+    # Если Docker Hub не настроен в CI и образ лежит только в GHCR:
+    # image: ghcr.io/dokerrs/frigate-to-tg:latest
+    # Конкретная версия вместо latest:
+    # image: docker.io/dokerrs/frigate-to-tg:0.1.0
+    container_name: frigate-to-tg
+    restart: unless-stopped
+    pull_policy: missing
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      # разкомментируйте, если в config.yaml задан logging.file
+      # - ./logs:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Если Frigate работает в своей docker-сети и доступен по имени контейнера —
+    # подключите контейнер к этой сети (имя посмотрите через `docker network ls`):
+    # networks:
+    #   - frigate
+    # Иначе оставьте как есть (compose создаст свою сеть) и укажите в config.yaml
+    # прямой адрес, например frigate.url: http://192.168.1.10:5000
+
+# networks:
+#   frigate:
+#     name: frigate_default
+#     external: true
