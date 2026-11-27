@@ -47,9 +47,10 @@ jobs:
         id: images
         run: |
           echo "ghcr=ghcr.io/$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY")" >> "$GITHUB_OUTPUT"
-          echo "dockerhub=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "${DOCKERHUB_NAME:-$GITHUB_REPOSITORY}")" >> "$GITHUB_OUTPUT"
+          echo "dockerhub=docker.io/$(tr '[:upper:]' '[:lower:]' <<< "$DOCKERHUB_USER/${REPO_NAME}")" >> "$GITHUB_OUTPUT"
         env:
-          DOCKERHUB_NAME: ${{ vars.DOCKERHUB_IMAGE }}
+          DOCKERHUB_USER: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME || github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v3

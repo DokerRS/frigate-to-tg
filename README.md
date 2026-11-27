@@ -122,8 +122,9 @@ routes:
 - **Dev-образ** — пуш в `dev` публикует тег `dev`.
 
 Секреты в Settings → Secrets and variables → Actions: `TELEGRAM_TOKEN` + `TELEGRAM_CHAT_ID`
-(уведомления о сборках), `DOCKERHUB_TOKEN` (опционально — без него пуш только в GHCR).
-GHCR работает через встроенный `GITHUB_TOKEN`.
+(уведомления о сборках), `DOCKERHUB_USERNAME` (имя пользователя Docker Hub) + `DOCKERHUB_TOKEN`
+(access token; без него пуш только в GHCR). Образ публикуется как
+`docker.io/<DOCKERHUB_USERNAME>/frigate-to-tg`. GHCR работает через встроенный `GITHUB_TOKEN`.
 
 ## Разработка
 

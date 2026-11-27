@@ -7,6 +7,7 @@
 services:
   frigate-to-tg:
     # Публикация из CI (workflow Build&Push Release Docker Image).
+    # Имя пользователя Docker Hub = DOCKERHUB_USERNAME из настроек GitHub-репозитория:
     # Docker Hub (по умолчанию):
     image: docker.io/dokerrs/frigate-to-tg:latest
     # Если Docker Hub не настроен в CI и образ лежит только в GHCR:
