@@ -30,6 +30,9 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.platform }}
+    # В step-условии `if:` контекст secrets недоступен, поэтому прокидываем токен через env job'а.
+    env:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +67,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to Docker Hub
-        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME || github.repository_owner }}
@@ -119,6 +122,8 @@ jobs:
     name: Merge & push manifests
     needs: [build]
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@v8
@@ -146,7 +151,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to Docker Hub
-        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME || github.repository_owner }}
@@ -156,7 +161,6 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         env:
           TAGS: ${{ inputs.tags }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           images="$GHCR_IMAGE"
           [ -n "$DOCKERHUB_TOKEN" ] && images="$images $DOCKERHUB_IMAGE"
