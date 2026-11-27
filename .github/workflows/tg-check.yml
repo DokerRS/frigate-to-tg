@@ -1,0 +1,79 @@
+name: Telegram Check
+
+# Диагностика доступа бота к чату: getMe / getChat / getUpdates / sendMessage.
+# Запускается вручную (Actions -> Telegram Check -> Run workflow). Токен не печатается:
+# GitHub маскирует значения секретов.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: 'Chat id (пусто = секрет TELEGRAM_CHAT_ID)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check Telegram access
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check
+        shell: bash
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TG_CHAT: ${{ inputs.chat_id != '' && inputs.chat_id || secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -uo pipefail
+          api="https://api.telegram.org/bot${TG_TOKEN}"
+
+          if [ -z "${TG_TOKEN}" ]; then
+            echo "::error::Sekret TELEGRAM_TOKEN pust"
+            exit 1
+          fi
+          echo "chat_id: '${TG_CHAT}'"
+
+          echo "--- getMe (kto etot bot) ---"
+          code=$(curl -sS -o /tmp/me.json -w '%{http_code}' "$api/getMe")
+          echo "HTTP $code"
+          if [ "$code" != "200" ]; then
+            cat /tmp/me.json
+            echo "::error::Token nevaliden"
+            exit 1
+          fi
+          python3 -c "import json;d=json.load(open('/tmp/me.json'));print('bot: @%s (id=%s)'%(d['result']['username'],d['result']['id']))"
+
+          echo "--- getChat (vidit li bot chat) ---"
+          code=$(curl -sS -o /tmp/chat.json -w '%{http_code}' -d chat_id="$TG_CHAT" "$api/getChat")
+          echo "HTTP $code"
+          cat /tmp/chat.json
+          echo
+
+          echo "--- getUpdates (kakie chaty bot videl nedavno) ---"
+          curl -sS "$api/getUpdates?limit=100" -o /tmp/up.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/up.json'))
+          seen = set()
+          for u in d.get('result', []):
+              c = u.get('message') or u.get('my_chat_member') or u.get('channel_post') or {}
+              c = c.get('chat')
+              if c:
+                  seen.add((c.get('id'), c.get('type'), c.get('title') or c.get('first_name') or '-'))
+          if not seen:
+              print('updateov net (bot nikto ne pishet / getUpdates pust)')
+          for s in sorted(seen):
+              print('%s\t%s\t%s' % s)
+          PY
+
+          echo "--- sendMessage (finalnaya proverka) ---"
+          code=$(curl -sS -o /tmp/send.json -w '%{http_code}' \
+            -d chat_id="$TG_CHAT" \
+            -d text="Telegram check iz GitHub Actions (tg-check)" \
+            "$api/sendMessage")
+          echo "HTTP $code"
+          cat /tmp/send.json
+          echo
+          [ "$code" = "200" ] || exit 1
