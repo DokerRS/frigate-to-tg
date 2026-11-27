@@ -274,36 +274,53 @@ class AlertBot:
             return
         self._video_locks.add(event_id)
         await self.tg.answer_callback(query_id, "Загружаю видео…")
+        message_id = message.get("message_id")
         try:
-            await self._send_video(chat_id, thread_id, event_id)
+            await self._send_video(chat_id, thread_id, event_id, reply_to=message_id)
         finally:
             self._video_locks.discard(event_id)
 
-    async def _send_video(self, chat_id: int, thread_id: int | None, event_id: str) -> None:
+    async def _send_video(
+        self,
+        chat_id: int,
+        thread_id: int | None,
+        event_id: str,
+        reply_to: int | None = None,
+    ) -> None:
         max_bytes = int(self.cfg.alerts.video_max_mb * 1024 * 1024)
         try:
             clip = await self.frigate.download_clip(event_id, max_bytes)
         except FrigateError as exc:
             log.error("Видео %s: %s", event_id, exc)
-            await self._notify(chat_id, thread_id, f"Не удалось получить видео: {html.escape(str(exc))}")
+            await self._notify(chat_id, thread_id, f"Не удалось получить видео: {html.escape(str(exc))}", reply_to)
             return
         if not clip:
             log.info("Видео %s недоступно (нет записи или больше лимита)", event_id)
-            await self._notify(chat_id, thread_id, "Видео недоступно: запись не найдена или файл больше лимита.")
+            await self._notify(
+                chat_id, thread_id,
+                "Видео недоступно: запись не найдена или файл больше лимита.",
+                reply_to,
+            )
             return
         try:
-            await self.tg.send_video(chat_id, clip, f"Видео события <code>{html.escape(event_id)}</code>", thread_id)
+            await self.tg.send_video(
+                chat_id, clip, f"Видео события <code>{html.escape(event_id)}</code>", thread_id,
+                reply_to_message_id=reply_to,
+            )
             log.info("Отправлено видео %s в chat %s", event_id, chat_id)
         except TelegramError as exc:
             log.warning("sendVideo %s не удался (%s), пробую как документ", event_id, exc)
             try:
-                await self.tg.send_document(chat_id, clip, f"Видео события <code>{html.escape(event_id)}</code>", thread_id)
+                await self.tg.send_document(
+                    chat_id, clip, f"Видео события <code>{html.escape(event_id)}</code>", thread_id,
+                    reply_to_message_id=reply_to,
+                )
             except TelegramError as exc2:
                 log.error("sendDocument %s не удался: %s", event_id, exc2)
-                await self._notify(chat_id, thread_id, f"Не удалось отправить видео: {html.escape(str(exc2))}")
+                await self._notify(chat_id, thread_id, f"Не удалось отправить видео: {html.escape(str(exc2))}", reply_to)
 
-    async def _notify(self, chat_id: int, thread_id: int | None, text: str) -> None:
+    async def _notify(self, chat_id: int, thread_id: int | None, text: str, reply_to: int | None = None) -> None:
         try:
-            await self.tg.send_message(chat_id, text, thread_id)
+            await self.tg.send_message(chat_id, text, thread_id, reply_to_message_id=reply_to)
         except TelegramError as exc:
             log.error("Не удалось отправить уведомление в chat %s: %s", chat_id, exc)

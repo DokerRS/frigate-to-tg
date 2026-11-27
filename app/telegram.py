@@ -63,7 +63,13 @@ class TelegramBot:
             data["offset"] = offset
         return await self._call("getUpdates", data=data)
 
-    async def send_message(self, chat_id: int, text: str, thread_id: int | None = None) -> dict:
+    async def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        thread_id: int | None = None,
+        reply_to_message_id: int | None = None,
+    ) -> dict:
         data: dict[str, Any] = {
             "chat_id": chat_id,
             "text": text,
@@ -72,6 +78,8 @@ class TelegramBot:
         }
         if thread_id:
             data["message_thread_id"] = thread_id
+        if reply_to_message_id:
+            data["reply_to_message_id"] = reply_to_message_id
         return await self._call("sendMessage", data=data)
 
     async def send_photo(
@@ -96,10 +104,13 @@ class TelegramBot:
         video: bytes,
         caption: str = "",
         thread_id: int | None = None,
+        reply_to_message_id: int | None = None,
     ) -> dict:
         data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
         if thread_id:
             data["message_thread_id"] = thread_id
+        if reply_to_message_id:
+            data["reply_to_message_id"] = reply_to_message_id
         files = {"video": ("clip.mp4", video, "video/mp4")}
         return await self._call("sendVideo", data=data, files=files)
 
@@ -109,10 +120,13 @@ class TelegramBot:
         document: bytes,
         caption: str = "",
         thread_id: int | None = None,
+        reply_to_message_id: int | None = None,
     ) -> dict:
         data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
         if thread_id:
             data["message_thread_id"] = thread_id
+        if reply_to_message_id:
+            data["reply_to_message_id"] = reply_to_message_id
         files = {"document": ("clip.mp4", document, "video/mp4")}
         return await self._call("sendDocument", data=data, files=files)
 
