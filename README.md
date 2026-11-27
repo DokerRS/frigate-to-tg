@@ -20,38 +20,27 @@
 - HTTP/SOCKS-прокси для Telegram API.
 - Docker Compose.
 
-## Быстрый старт
+## Установка
 
 1. Создайте бота у [@BotFather](https://t.me/BotFather), получите токен.
    Для отправки в топики бот должен быть добавлен в группу-форум и иметь право писать сообщения.
-2. Создайте каталог и скачайте prod-compose и пример конфига (ветка `dev`; после релиза — `main`):
+2. Создайте каталог и скачайте compose-файл и пример конфига (ветка `dev`; после релиза — `main`):
    ```bash
    mkdir -p /opt/frigate-to-tg && cd /opt/frigate-to-tg
    curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/DokerRS/frigate-to-tg/dev/docker-compose-prod.yml
    curl -fsSL -o .env https://raw.githubusercontent.com/DokerRS/frigate-to-tg/dev/.env.example
    ```
-   `.env` не попадает в git, поэтому токен и пароли пишете прямо в него.
-   docker compose подхватывает `.env` автоматически (файл рядом с compose-файлом).
-   (Если исходники уже клонированы локально — просто `cp .env.example .env`.)
 3. Заполните `.env`: токен бота, адрес Frigate, прокси Telegram, маршруты
    (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
-4. Запуск. Есть два варианта:
-
-   **Вариант A — из готового образа из Docker Hub (рекомендуется, не нужен исходник и сборка):**
+4. Запуск (образ скачается из Docker Hub):
    ```bash
    docker compose pull
    docker compose up -d
    docker compose logs -f
    ```
-   Обновление — те же `pull` + `up -d` (или конкретная версия: `image: docker.io/dokerrs/frigate-to-tg:0.1.0`
-   в `docker-compose.yml`). CI публикует образы в `docker.io/dokerrs/frigate-to-tg` и
-   `ghcr.io/dokerrs/frigate-to-tg` (теги `latest` и номер релиза; `dev` — сборки из ветки dev).
-
-   **Вариант B — сборка из исходников локально:**
-   ```bash
-   docker compose up -d --build
-   docker compose logs -f
-   ```
+Обновление — те же `pull` + `up -d`. CI публикует образы в `docker.io/dokerrs/frigate-to-tg` и
+`ghcr.io/dokerrs/frigate-to-tg` (теги `latest` и номер релиза; `dev` — сборки из ветки dev).
+Можно зафиксировать версию: `image: docker.io/dokerrs/frigate-to-tg:0.1.0` в `docker-compose.yml`.
 
 Сетей external в compose нет: по умолчанию контейнер в своей сети, поэтому в `.env`
 укажите прямой адрес Frigate (например `FRIGATE_URL=http://192.168.1.10:5000`). Если Frigate доступен
