@@ -84,7 +84,6 @@ class AlertsConfig:
     caption_format: str = "{camera}: {label} — {score}%"
     caption_card: bool = True
     timezone: str | None = None
-    photo_as_document: bool = False  # исходное качество: файл без сжатия Telegram
     send_video_button: bool = True
     video_max_mb: float = 45.0
     event_ttl_minutes: int = 120
@@ -229,7 +228,6 @@ def _parse_alerts(env: _Env) -> AlertsConfig:
         caption_format=env.get("CAPTION_FORMAT", AlertsConfig.caption_format),
         caption_card=env.bool("CAPTION_CARD", True),
         timezone=env.opt("TIMEZONE"),
-        photo_as_document=env.bool("PHOTO_AS_DOCUMENT", False),
         send_video_button=env.bool("SEND_VIDEO_BUTTON", True),
         video_max_mb=env.float("VIDEO_MAX_MB", 45.0),
         event_ttl_minutes=env.int("EVENT_TTL_MINUTES", 120),

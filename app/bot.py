@@ -153,16 +153,7 @@ class AlertBot:
         markup: dict | None,
     ) -> None:
         try:
-            if self.cfg.alerts.photo_as_document:
-                # sendPhoto всегда пережимает кадр (до 2048 px + повторный JPEG),
-                # sendDocument отдаёт файл как есть.
-                filename = f"event-{event.event_id}.jpg"
-                await self.tg.send_document(
-                    route.chat_id, image, filename, "image/jpeg", caption, route.thread_id,
-                    reply_markup=markup,
-                )
-            else:
-                await self.tg.send_photo(route.chat_id, image, caption, route.thread_id, markup)
+            await self.tg.send_photo(route.chat_id, image, caption, route.thread_id, markup)
             log.info("Отправлено событие %s (%s %s) -> %s", event.event_id, event.camera, event.label, route.describe())
         except TelegramError as exc:
             log.error("Не удалось отправить фото в %s: %s", route.describe(), exc)
@@ -321,8 +312,7 @@ class AlertBot:
             log.warning("sendVideo %s не удался (%s), пробую как документ", event_id, exc)
             try:
                 await self.tg.send_document(
-                    chat_id, clip, f"event-{event_id}.mp4", "video/mp4",
-                    f"Видео события <code>{html.escape(event_id)}</code>", thread_id,
+                    chat_id, clip, f"Видео события <code>{html.escape(event_id)}</code>", thread_id,
                     reply_to_message_id=reply_to,
                 )
             except TelegramError as exc2:
