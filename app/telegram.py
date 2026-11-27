@@ -118,16 +118,21 @@ class TelegramBot:
         self,
         chat_id: int,
         document: bytes,
+        filename: str,
+        content_type: str,
         caption: str = "",
         thread_id: int | None = None,
         reply_to_message_id: int | None = None,
+        reply_markup: dict | None = None,
     ) -> dict:
         data: dict[str, Any] = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
         if thread_id:
             data["message_thread_id"] = thread_id
         if reply_to_message_id:
             data["reply_to_message_id"] = reply_to_message_id
-        files = {"document": ("clip.mp4", document, "video/mp4")}
+        if reply_markup:
+            data["reply_markup"] = json.dumps(reply_markup)
+        files = {"document": (filename, document, content_type)}
         return await self._call("sendDocument", data=data, files=files)
 
     async def answer_callback(self, callback_id: str, text: str | None = None, show_alert: bool = False) -> None:

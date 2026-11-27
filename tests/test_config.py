@@ -112,6 +112,13 @@ def test_bad_values_fail(monkeypatch):
         load(monkeypatch, TELEGRAM_BOT_TOKEN="tok", ROUTE_1_CHAT_ID=-1, CAPTION_CARD="maybe")
 
 
+def test_photo_as_document_flag(monkeypatch):
+    cfg = load(monkeypatch, TELEGRAM_BOT_TOKEN="tok", ROUTE_1_CHAT_ID=-1)
+    assert cfg.alerts.photo_as_document is False
+    cfg = load(monkeypatch, TELEGRAM_BOT_TOKEN="tok", ROUTE_1_CHAT_ID=-1, PHOTO_AS_DOCUMENT="true")
+    assert cfg.alerts.photo_as_document is True
+
+
 def test_env_file_syntax_error(tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("TOKEN\n", encoding="utf-8")
