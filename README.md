@@ -24,11 +24,11 @@
 
 1. Создайте бота у [@BotFather](https://t.me/BotFather), получите токен.
    Для отправки в топики бот должен быть добавлен в группу-форум и иметь право писать сообщения.
-2. Создайте каталог и скачайте compose-файл и пример конфига (ветка `dev`; после релиза — `main`):
+2. Создайте каталог и скачайте compose-файл и пример конфига:
    ```bash
    mkdir -p /opt/frigate-to-tg && cd /opt/frigate-to-tg
-   curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/DokerRS/frigate-to-tg/dev/docker-compose-prod.yml
-   curl -fsSL -o .env https://raw.githubusercontent.com/DokerRS/frigate-to-tg/dev/.env.example
+   curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/DokerRS/frigate-to-tg/main/docker-compose-prod.yml
+   curl -fsSL -o .env https://raw.githubusercontent.com/DokerRS/frigate-to-tg/main/.env.example
    ```
 3. Заполните `.env`: токен бота, адрес Frigate, прокси Telegram, маршруты
    (см. ниже). `chat_id` чата узнайте командой `/chatid` (напишите боту в нужный чат/топик).
